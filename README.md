@@ -1,0 +1,2 @@
+# Falco.Datastar
+Falco + Datastar 🚀 = ❤️
