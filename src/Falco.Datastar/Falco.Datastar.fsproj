@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Falco.Datastar</AssemblyName>
+    <Version>0.9.0</Version>
+
+    <!-- General info -->
+    <Description>Datastar Bindings for the Falco web toolkit.</Description>
+    <Copyright>Copyright 2025 Greg Holden</Copyright>
+    <Authors>Greg Holden, Pim Brouwers, Damian Plaza and contributors</Authors>
+    <NeutralLanguage>en-CA</NeutralLanguage>
+
+    <!-- Build config -->
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <DebugType>embedded</DebugType>
+    <OutputType>Library</OutputType>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- NuGet config -->
+    <PackageId>Falco.Datastar</PackageId>
+    <PackageTags>fsharp;web;falco;falco-sharp;data-star;</PackageTags>
+    <PackageProjectUrl>https://github.com/pimbrouwers/Falco.Datastar</PackageProjectUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/SpiralOSS/Falco.Datastar</RepositoryUrl>
+
+    <!-- SourceLink settings -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Falco" Version="5.0.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
+    <!--<PackageReference Include="StarFederation.Datastar" Version="1.0.0-beta.3" />-->
+  </ItemGroup>  
+    
+  <ItemGroup>
+    <Compile Include="Utility.fs" />
+    <Compile Include="Types.fs" />
+    <Compile Include="Ds.fs" />
+    <Compile Include="Request.fs" />
+    <Compile Include="Response.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../assets/icon.png">
+      <Pack>true</Pack>
+      <PackagePath>$(PackageIconUrl)</PackagePath>
+    </None>
+    <None Include="../../README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\datastar\sdk\dotnet\src\Datastar.fsproj" />
+  </ItemGroup>
+
+</Project>
