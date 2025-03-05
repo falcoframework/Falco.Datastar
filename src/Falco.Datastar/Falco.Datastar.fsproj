@@ -37,9 +37,9 @@
   <ItemGroup>
     <PackageReference Include="Falco" Version="5.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
-    <!--<PackageReference Include="StarFederation.Datastar" Version="1.0.0-beta.3" />-->
-  </ItemGroup>  
-    
+    <PackageReference Include="StarFederation.Datastar" Version="1.0.0-beta.4" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Include="Utility.fs" />
     <Compile Include="Types.fs" />
@@ -54,10 +54,6 @@
       <PackagePath>$(PackageIconUrl)</PackagePath>
     </None>
     <None Include="../../README.md" Pack="true" PackagePath="\"/>
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\datastar\sdk\dotnet\src\Datastar.fsproj" />
   </ItemGroup>
 
 </Project>

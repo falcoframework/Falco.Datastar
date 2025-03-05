@@ -146,8 +146,11 @@ type Response =
         )
 
     /// <summary>
-    /// Sends signals in a ServerSideEvent to be merged with signals on the client
+    /// Merge a single signal on the client
     /// </summary>
+    /// <param name="signalPath">Path to the signal you want to update</param>
+    /// <param name="signalValue">The value to set it to</param>
+    /// <param name="sseOptions">ServerSentEvent Options</param>
     static member ofMergeSignal<'T> (signalPath, signalValue:'T, ?sseOptions) : HttpHandler = (fun ctx ->
         let signalUpdate = (signalPath, signalValue) ||> SignalPath.createJsonNodePathToValue |> _.ToJsonString()
         ServerSentEventGenerator.mergeSignals ((Response.startServerSentEventStream ctx), signalUpdate, ?options=sseOptions)

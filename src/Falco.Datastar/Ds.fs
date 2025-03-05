@@ -417,9 +417,12 @@ type Ds =
         let shouldRound = defaultArg shouldRound false |> _.ToString().ToLower()
         $"@fit({valueExpr}, {oldRange |> fst}, {oldRange |> snd}, {newRange |> fst}, {newRange |> snd}, {shouldClamp}, {shouldRound})"
 
-
-    static member expressions (expressions:string seq) =
-        expressions |> String.concat "; "
+    /// <summary>
+    /// Method for joining strings with " ; " to simplify multi-line expressions
+    /// </summary>
+    /// <param name="expressions"></param>
+    static member expression (expressions:string seq) =
+        expressions |> String.concat " ; "
 
     /// <summary>
     /// An attribute that should be placed in the &lt;body&gt; when creating a streaming app to avoid the issue explained here:

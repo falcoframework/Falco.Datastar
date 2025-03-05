@@ -1,6 +1,5 @@
 open System
-open System.Collections.Generic
-open System.Threading
+open System.Collections.Concurrent
 open System.Threading.Tasks
 open Falco
 open Falco.Markup
@@ -13,11 +12,10 @@ open StarFederation.Datastar.SignalPath
 type User = Guid
 type StreamDisplay =
     | BadApple
-    | Users
-    | Off of SemaphoreSlim
+    | OnlineUsers
     | LoggedOff
 
-let connectedUsers = Dictionary<User, StreamDisplay>()
+let userDisplays = ConcurrentDictionary<User, StreamDisplay>()
 
 module Consts =
     let [<Literal>] streamViewId = "streamView"
@@ -26,16 +24,6 @@ module Consts =
 
     let [<Literal>] displaySignalValueBadApple = "badapple"
     let [<Literal>] displaySignalValueUsers = "users"
-    let [<Literal>] displaySignalValueOff = "off"
-
-let badAppleFrames = Animation.badAppleFrames
-let mutable currentBadAppleFrame = 0
-let totalBadAppleFrames = badAppleFrames |> Array.length
-backgroundTask {
-    while true do
-        currentBadAppleFrame <- (currentBadAppleFrame + 1) % totalBadAppleFrames
-        do! Task.Delay(TimeSpan.FromMilliseconds(50))
-} |> ignore
 
 let handleIndex ctx = task {
     let html (user:User) =
@@ -43,9 +31,9 @@ let handleIndex ctx = task {
             Elem.head [ Attr.title "Streaming" ] [ Ds.cdnScript ]
             Elem.body [
                 Ds.signal (Consts.userSignalName, user)
-                Ds.signal (Consts.displaySignalName, Consts.displaySignalValueOff)
+                Ds.signal (Consts.displaySignalName, Consts.displaySignalValueBadApple)
                 Ds.onSignalChanged (Consts.displaySignalName, Ds.post "/channel")
-                Ds.persistSignals [ Consts.userSignalName ]
+                Ds.persistSignals ([ Consts.userSignalName ], inSession = true)
                 Ds.safariStreamingFix
             ] [
                 Elem.div [ Ds.onLoad (Ds.get "/stream"); Ds.indicator (sp"_streamOpen") ] []
@@ -58,11 +46,7 @@ let handleIndex ctx = task {
 
                 Elem.input [ Attr.id "streamDisplayGuids"; Attr.typeRadio; Attr.value Consts.displaySignalValueUsers
                              Ds.bind Consts.displaySignalName ]
-                Elem.label [ Attr.for' "streamDisplayGuids" ] [ Text.raw "Users" ]
-
-                Elem.input [ Attr.id "streamDisplayOff"; Attr.typeRadio; Attr.value Consts.displaySignalValueOff
-                             Ds.bind Consts.displaySignalName ]
-                Elem.label [ Attr.for' "streamDisplayOff" ] [ Text.raw "Off" ]
+                Elem.label [ Attr.for' "streamDisplayGuids" ] [ Text.raw "Viewers" ]
 
                 Elem.div [ Attr.id Consts.streamViewId ] []
             ]
@@ -70,64 +54,44 @@ let handleIndex ctx = task {
     return Response.ofHtml (html (Guid.NewGuid())) ctx
     }
 
-let handleViewChange () : HttpHandler = (fun ctx -> task {
+let handleViewChange : HttpHandler = (fun ctx -> task {
     let! user = Request.getSignal<User> (ctx, Consts.userSignalName)
     let! display = Request.getSignal<string> (ctx, Consts.displaySignalName)
-    try
-        let user = user |> ValueOption.get
-        let display = display |> ValueOption.get
+    let user = user |> ValueOption.get
+    let display = display |> ValueOption.get
 
-        if not <| connectedUsers.ContainsKey(user) then
-            connectedUsers[user] <- LoggedOff
-
-        match connectedUsers[user] with
-        | Off semaphore -> semaphore.Release() |> ignore
-        | _ -> ()
-        match display with
-        | Consts.displaySignalValueBadApple -> connectedUsers[user] <- BadApple
-        | Consts.displaySignalValueUsers -> connectedUsers[user] <- Users
-        | Consts.displaySignalValueOff -> connectedUsers[user] <- Off (new SemaphoreSlim(0))
-    //with | _ -> ()
-    finally
-        ()
-
+    match display with
+    | Consts.displaySignalValueBadApple -> userDisplays.AddOrUpdate(user, BadApple, (fun _ _ -> BadApple)) |> ignore
+    | Consts.displaySignalValueUsers -> userDisplays.AddOrUpdate(user, OnlineUsers, (fun _ _ -> OnlineUsers)) |> ignore
+    | _ -> ()
     })
 
-let handleStream () : HttpHandler = (fun ctx -> task {
+let handleStream : HttpHandler = (fun ctx -> task {
     let sseHandler = Response.startServerSentEventStream ctx
 
     let! user = Request.getSignal<Guid> (ctx, "user")
     let user = user |> ValueOption.get
 
-    if not <| connectedUsers.ContainsKey(user) || connectedUsers[user].IsLoggedOff then
-        do! Response.sseMergeSignal (sseHandler, Consts.displaySignalName, Consts.displaySignalValueOff)
-        connectedUsers[user] <- Off (new SemaphoreSlim(0))
+    do! handleViewChange ctx
 
     try
         try
             while not <| ctx.RequestAborted.IsCancellationRequested do
-                match connectedUsers[user] with
-                | Off semaphoreSlim ->
-                    do! Response.sseHtmlFragments (sseHandler, Elem.pre [ Attr.id Consts.streamViewId ] [ Text.raw "OFF!" ])
-                    do! semaphoreSlim.WaitAsync(ctx.RequestAborted)
-                    try
-                        semaphoreSlim.Dispose()
-                    with | _ -> ()
-                | Users ->
-                    let users = connectedUsers |> Seq.filter (fun user -> user.Value.IsLoggedOff |> not) |> Seq.map _.Key.ToString() |> String.concat "\r\n"
+                let userDisplay = userDisplays.GetOrAdd(user, BadApple)
+                match userDisplay with
+                | OnlineUsers ->
+                    let users = userDisplays |> Seq.filter (fun user -> user.Value.IsLoggedOff |> not) |> Seq.map _.Key.ToString() |> String.concat "\n"
                     do! Response.sseHtmlFragments (sseHandler, Elem.pre [ Attr.id Consts.streamViewId ] [ Text.raw users ] )
                     do! Task.Delay(TimeSpan.FromSeconds 1L, ctx.RequestAborted)
                 | BadApple ->
-                    do! Response.sseHtmlFragments (sseHandler, Elem.pre [ Attr.id Consts.streamViewId ] [ Text.raw badAppleFrames[currentBadAppleFrame] ])
+                    do! Response.sseHtmlFragments (sseHandler, Elem.pre [ Attr.id Consts.streamViewId ] [ Text.raw (Animation.getCurrentBadAppleFrame())  ])
                     do! Task.Delay(TimeSpan.FromMilliseconds(50), ctx.RequestAborted)
-                | _ ->
-                    Console.WriteLine "oh geez"
-                    failwith "oh geez"
-
+                | LoggedOff ->
+                    raise (OperationCanceledException())
         with
         | :? OperationCanceledException -> ()
     finally
-        connectedUsers[user] <- LoggedOff
+        userDisplays[user] <- LoggedOff
     })
 
 let wapp = WebApplication.Create()
@@ -135,8 +99,8 @@ let wapp = WebApplication.Create()
 let endpoints =
     [
         get "/" (fun ctx -> handleIndex ctx)
-        get "/stream" (handleStream())
-        post "/channel" (handleViewChange())
+        get "/stream" handleStream
+        post "/channel" handleViewChange
     ]
 
 wapp.UseRouting()

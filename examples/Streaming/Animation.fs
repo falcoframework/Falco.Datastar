@@ -1,9 +1,9 @@
 module Animation
 
+open System
 open System.IO
 open System.Text
-open System.Threading
-open System.Threading.Tasks.Dataflow
+open System.Threading.Tasks
 
 // the laziest zstd parser
 let readAnimationFile zstPath =
@@ -30,6 +30,17 @@ let readAnimationFile zstPath =
     |> Seq.map (fst >> ValueOption.get)
 
 // the laziest broadcast block with the latest frame of BadApple, plays continuously
-let badAppleFrames =
+let readBadAppleFrames =
     let zstPath = Path.Combine("assets", "badapple.zst")
     readAnimationFile zstPath |> Seq.toArray
+
+let badAppleFrames = readBadAppleFrames
+let mutable currentBadAppleFrame = 0
+let totalBadAppleFrames = badAppleFrames |> Array.length
+backgroundTask {
+    while true do
+        currentBadAppleFrame <- (currentBadAppleFrame + 1) % totalBadAppleFrames
+        do! Task.Delay(TimeSpan.FromMilliseconds(50))
+} |> ignore
+
+let getCurrentBadAppleFrame () = badAppleFrames[currentBadAppleFrame]

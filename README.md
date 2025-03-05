@@ -27,6 +27,9 @@ As well as helpers for retrieving the signals and responding with Datastar Serve
 
 ## Getting Started
 
+First off, for any questions or criticisms of this library or [Datastar](http://data-star.dev) in general,
+please join our [Discord](https://discord.com/channels/1296224603642925098/1334541716497109042), where we are definitely not a cult.
+
 This guide assumes you have a [Falco](https://github.com/pimbrouwers/Falco) project setup. If you don't, you can create a new Falco project using the following commands.
 The full code for this guide can be found in the [Hello World example](examples/HelloWorld).
 
@@ -117,12 +120,12 @@ Some important notes: Signals defined later in the DOM tree override those defin
 
 #### Sections:
 
-- [Creating Signals](#_creating-signals_)
-- [Binding to Signals](#_signal-binding_)
-- [Events and Triggers](#_events-and-triggers_)
-- [Actions and Functions](#_actions-and-functions_)
-- [Miscellaneous Actions](#_miscellaneous-actions_)
-- [When to $](#_when-to-_)
+- [Creating Signals](#creating-signals)
+- [Binding to Signals](#signal-binding)
+- [Events and Triggers](#events-and-triggers)
+- [Actions and Functions](#actions-and-functions)
+- [Miscellaneous Actions](#miscellaneous-actions)
+- [When to $](#when-to-)
 
 ### _Creating Signals_
 
@@ -301,9 +304,9 @@ Modifiers allow you to alter the behavior when events are triggered. (Modifiers 
 
 ```fsharp
  type OnEventModifier =
-    | Once     // *
-    | Passive  // *
-    | Capture  // *
+    | Once     // * - can only be used with built-in events
+    | Passive  // * - can only be used with built-in events
+    | Capture  // * - can only be used with built-in events
     | Delay of TimeSpan
     | Debounce of Debounce  // timespan, leading, and notrail
     | Throttle of Throttle  // timepan, noleading, and trail
@@ -470,11 +473,11 @@ This can be useful for preventing naming conflicts with third-party libraries.
 
 ```fsharp
 Elem.div [ Ds.ignore ] [
-    Elem.div [ Attr.id' "ignoredAsWell" ]
+    Elem.div [ Ds.text "ignoredAsWell" ] []
 ]
 
 Elem.div [ Ds.ignoreThis ] [
-    Elem.div [ Attr.id' "thisIsNotIgnored" ]
+    Elem.div [ Ds.text "thisIsNotIgnored" ] []
 ]
 ```
 
@@ -488,17 +491,10 @@ The `$` symbol is used as a shorthand to access the value of a signal in an expr
 so when the `$` is elided, you are referring to the signal directly.
 [`Ds.bind signalPath`](#dsbind--data-bind) is two-way binding to the signal, so requires the signal path, no `$`.
 [`Ds.text`](#dstext--data-text) is replacing the element's innerText, so it only needs the value, via `$`.
-[`Ds.computed (signalPath, expression)`](#dscomputed--data-computed)
-needs both a signal path AND an expression, e.g. `Ds.computed ("countPlusTen", "$count + 10")`.
+[`Ds.computed (signalPath, expression)`](#dscomputed--data-computed) needs both a signal path AND an expression, e.g. `Ds.computed ("countPlusTen", "$count + 10")`.
 
-To sum, a signal path is a string that will access a signal in a hierarchy of signals, e.g. `"count"`,
-`"user.firstName"`.
-An expression uses the value of the signal, so signals should be prefixed with `$`, e.g. `"$count"`,
-`"$user.firstName"`.
-To help, the function argument names will reflect which is expected.
-
-Finally, if you want to be certain you are doing it correctly, then there is a helper method `SignalPath.sp` that will throw an exception if
-a signal path contains any invalid symbols, such as `$`.
+If you want to be certain you are doing it correctly, then there is a helper method `SignalPath.sp`
+that will throw an exception at startup, if a signal path contains any invalid symbols, such as `$`.
 
 ```fsharp
 open StarFederation.Datastar.SignalPath
@@ -512,20 +508,22 @@ Elem.input [ Attr.typeCheckbox; Ds.bind (sp"checkBoxSignal") ]
 with [Datastar Server Side Events (SSEs)](https://data-star.dev/reference/sse_events).
 
 Sections:
-- [Reading Signal Values](#_reading-signal-values_)
-- [Responding with Signals](#_responding-with-signals_)
-- [Responding with HTML Fragments](#_responding-with-html-fragments_)
+- [Reading Signal Values](#reading-signal-values)
+- [Responding with Signals](#responding-with-signals)
+- [Responding with HTML Fragments](#responding-with-html-fragments)
+- [Streaming Server Side Events](#streaming-server-side-events)
 
 ### _Reading Signal Values_
 
-All requests are sent with a `{datastar: *}` object containing the current signals (except for local signals
-whose keys begin with an underscore). When using a `GET` request, the signals are sent as a query parameter; otherwise,
-they are sent as a JSON body.
+All requests are sent with a `{datastar: *}` object containing the current signals (you can keep signals local to the client
+by prefixing the name with an underscore). When using a `GET` request, the signals are sent as a query parameter; otherwise,
+they are sent as a JSON body. Luckily, with [Falco.Datastar](https://github.com/SpiralOSS/Falco.Datastar), you don't have to
+worry about any of that.
 
 ### `Request.getSignals<'T>`
 
-Will use [`System.Text.Json.JsonSerializer`](https://learn.microsoft.com/en-us/dotnet/api/system.text.json.jsonserializer.deserialize) to deserialize the signals that are
-passed into a `'T`. If there are no signals, then the default values will be returned.
+Will use [`System.Text.Json.JsonSerializer`](https://learn.microsoft.com/en-us/dotnet/api/system.text.json.jsonserializer.deserialize) to deserialize the signals into a `'T`.
+If there are no signals, then the default values will be returned.
 
 ```fsharp
 type MySignals() =
@@ -545,7 +543,7 @@ Given a signal path, it will deserialize the item at the end of the path into a 
 
 ```fsharp
 let httpHandler : HttpHandler = (fun ctx -> task {
-    let! lastAgentShown = Request.getSignal<int> (ctx, "lastAgentShown")
+    let! lastAgentShown = Request.getSignal<int> (ctx, "user.firstName")
     ...
     })
 ```
@@ -571,6 +569,14 @@ Serializes signals with [`System.Text.Json.JsonSerializer`](https://learn.micros
 Response.ofMergeSignals (MySignals())
 ```
 
+### `Response.ofMergeSignal<'T>`
+
+Updates a single signal on the client.
+
+```fsharp
+Response.ofMergeSignal (sp"user.firstName", "Don")
+```
+
 ### `Response.ofMergeSignals`
 
 Takes the signals as a JSON string and sends them to the client where Datastar will merge them.
@@ -583,33 +589,65 @@ Response.ofMergeSignals @" { ""firstName"": ""Don"", ""lastName"": ""Syme"" } "
 
 Given a `seq` of signal paths, will remove that signals from the client.
 
+```fsharp
+Response.ofRemoveSignals [ sp"user.firstName"; sp"user.lastName" ]
+```
+
 ### _Responding with HTML Fragments_
+
+HTML fragments are sent to client and replace the current element (matching on the `id` attribute) with the one that is sent.
+The following functions are `HttpHandler`s that will send down a single Server Sent Event.
 
 ### `Response.ofHtmlFragments`
 
 Will render an XMLNode and send it to the client. Client Datastar will replace the element with the matching `id` attribute (or optionally provided selector)
 
+```fsharp
+Response.ofHtmlFragments (Elem.h2 [ Attr.id "hello" ] [ Text.raw "Hello, World from the Server!" ])
+```
+
 ### `Response.ofHtmlStringFragments`
 
 Will send HTML fragments to the client. Client Datastar will replace the element with the matching `id` attribute (or optionally provided selector)
+
+```fsharp
+Response.ofHtmlStringFragments @"<h2 id='hello'>Hello, World from the Server!"
+```
 
 ### `Response.ofRemoveFragments`
 
 Will send a command to client Datastar to remove fragments with the matching selector.
 
-### _Streaming Responses_
-
-Within the Response functions, [Falco.Datastar](https://github.com/SpiralOSS/Falco.Datastar) has two modes:
-one-time responses (functions prefixed with `of`) and keeping a connection open and streaming 0 to N server side events
-(functions prefixed with `sse`). Under the hood, they are identical; however when streaming, you are sending 0, 1, or infinite
-[Datastar SSE events](https://data-star.dev/reference/sse_events) (as opposed to a single SSE).
-
 ```fsharp
-
+Response.ofRemoveFragments [ sel"hello" ]
 ```
 
+### _Streaming Server Side Events_
 
-When writing responsive websites in [Datastar](https://data-star.dev); it is intended that the client opens a connection
-to the server and that connection remains open for the lifetime of the web application. Any new data that the server
-receives is immediately streamed to all connected clients. The [progress bar example](https://data-star.dev/examples/progress_bar) is a great
-demonstration of what can be achieved with Datastar; no polling necessary.
+Within the `Response` module there are the `of` methods that are for sending single server side events and then closing the connection.
+But, [Datastar's](https://data-star.dev) true power is unlocked when the client keep a connection open to the server
+and updates are sent to all clients as they are received by the server. This is a much more efficient alternative
+to having all the clients poll the server every few moments and provides much greater control over back-pressure.
+
+The [progress bar example](https://data-star.dev/examples/progress_bar) is a great and simple demonstration of what can
+be achieved with [Datastar](https://data-star.dev); no polling necessary.
+
+All the functions in [Responding with Signals](#responding-with-signals) and [Responding with HTML Fragments](#responding-with-html-fragments)
+are mirrored with a function with `sse` as their prefix instead of `of`.
+
+The `sse*` functions require an `sseHandler` that is obtained through `Response.startServerSentEventStream`.
+
+```fsharp
+let handleStream = (fun ctx -> task {
+    let sseHandler = Response.startServerSentEventStream ctx
+
+    let mutable counter = 0
+
+    while not <| ctx.RequestAborted.IsCancellationRequested do
+        do! Response.sseMergeSignal (sseHandler, sp"counter", counter)
+        do! Response.sseHtmlFragments (sseHandler, Elem.pre [ Attr.id "counterId" ] [ Text.raw counter.ToString() ] )
+        do! Task.Delay(TimeSpan.FromSeconds 1L, ctx.RequestAborted)
+        counter <- counter + 1
+```
+
+See the [Streaming example](examples/Streaming/) for more.

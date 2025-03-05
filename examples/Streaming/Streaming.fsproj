@@ -5,11 +5,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <None Include="assets\badapple.zst">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <Compile Include="Animation.fs" />
         <Compile Include="Streaming.fs" />
-        <None Include="assets\badapple.zst">
-          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
     </ItemGroup>
 
     <ItemGroup>
