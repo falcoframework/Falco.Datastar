@@ -297,6 +297,21 @@ type Ds =
         Ds.onEvent (OnEvent.SignalChanged(signalPath), expression, ?modifiers = modifiers)
 
     /// <summary>
+    /// Short hand for `onEvent OnEvent.Interval`. Evaluates the expression on a steady interval
+    /// </summary>
+    /// <param name="expression">The expression to evaluate when the event is triggered. https://data-star.dev/guide/datastar_expressions</param>
+    /// <param name="interval">The time between each evaluation; default = Duration.With(TimeSpan.FromSeconds 1, false)</param>
+    /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
+    static member onInterval (expression, ?interval, ?modifiers) =
+        let interval = defaultArg interval Duration.Default
+        let modifiers = defaultArg modifiers ([] : OnEventModifier list)
+        let modifiers =
+            if (modifiers |> List.exists _.IsDuration |> not && interval <> Duration.Default)
+            then interval :: modifiers
+            else modifiers
+        Ds.onEvent (OnEvent.Interval, expression, modifiers)
+
+    /// <summary>
     /// Actions
     /// </summary>
     static member private backendAction actionOptions action =
