@@ -139,7 +139,9 @@ type Debounce private (timeSpan:TimeSpan, leading:bool, noTrail:bool) =
             if noTrail then "notrail"
         } |> String.concat "."
     static member With (timeSpan:TimeSpan, ?leading:bool, ?noTrail:bool) =
-        OnEventModifier.Debounce (Debounce (timeSpan, leading |> Option.defaultValue false, noTrail |> Option.defaultValue false))
+        let leading = defaultArg leading false
+        let noTrail = defaultArg noTrail false
+        OnEventModifier.Debounce (Debounce (timeSpan, leading, noTrail))
 
 and Throttle private (timeSpan:TimeSpan, noLeading:bool, trail:bool) =
     member _.serialize =
@@ -149,7 +151,9 @@ and Throttle private (timeSpan:TimeSpan, noLeading:bool, trail:bool) =
             if trail then "trail"
         } |> String.concat "."
     static member With (timeSpan:TimeSpan, ?noLeading:bool, ?trail:bool) =
-        OnEventModifier.Throttle (Throttle (timeSpan, noLeading |> Option.defaultValue false, trail |> Option.defaultValue false))
+        let noLeading = defaultArg noLeading false
+        let trail = defaultArg trail false
+        OnEventModifier.Throttle (Throttle (timeSpan, noLeading, trail))
 
 and Duration private (timeSpan:TimeSpan, leading:bool) =
     member _.serialize =
@@ -157,8 +161,9 @@ and Duration private (timeSpan:TimeSpan, leading:bool) =
             $"duration.{timeSpan.Milliseconds}ms"
             if leading then "leading"
         } |> String.concat "."
-    static member With (timeSpan:TimeSpan, ?leading:bool) =
-        OnEventModifier.Duration (Duration (timeSpan, leading |> Option.defaultValue false))
+    static member With (timeSpan, ?leading) =
+        let leading = defaultArg leading false
+        OnEventModifier.Duration (Duration (timeSpan, leading))
 
 and OnEventModifier =
     /// <summary>

@@ -263,8 +263,7 @@ type Ds =
     /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
     /// <returns>Attribute</returns>
     static member onClick (expression, ?modifiers) =
-        let modifiers = defaultArg modifiers []
-        Ds.onEvent (OnEvent.Click, expression, modifiers)
+        Ds.onEvent (OnEvent.Click, expression, ?modifiers = modifiers)
 
     /// <summary>
     /// Short hand for `onEvent OnEvent.Load`. Fires the expression when the element is loaded.
@@ -274,8 +273,7 @@ type Ds =
     /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
     /// <returns>Attribute</returns>
     static member onLoad (expression, ?modifiers) =
-        let modifiers = defaultArg modifiers []
-        Ds.onEvent (OnEvent.Load, expression, modifiers)
+        Ds.onEvent (OnEvent.Load, expression, ?modifiers = modifiers)
 
     /// <summary>
     /// Short hand for `onEvent OnEvent.Load`. Fires the expression when the element is loaded.
@@ -285,8 +283,7 @@ type Ds =
     /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
     /// <returns>Attribute</returns>
     static member onSignalsChanged (expression, ?modifiers) =
-        let modifiers = defaultArg modifiers []
-        Ds.onEvent (OnEvent.SignalsChanged, expression, modifiers)
+        Ds.onEvent (OnEvent.SignalsChanged, expression, ?modifiers = modifiers)
 
     /// <summary>
     /// Short hand for `onEvent OnEvent.Load`. Fires the expression when the element is loaded.
@@ -297,8 +294,7 @@ type Ds =
     /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
     /// <returns>Attribute</returns>
     static member onSignalChanged (signalPath:SignalPath, expression, ?modifiers) =
-        let modifiers = defaultArg modifiers []
-        Ds.onEvent (OnEvent.SignalChanged(signalPath), expression, modifiers)
+        Ds.onEvent (OnEvent.SignalChanged(signalPath), expression, ?modifiers = modifiers)
 
     /// <summary>
     /// Actions
@@ -362,8 +358,7 @@ type Ds =
     /// https://data-star.dev/reference/action_plugins#clipboard
     /// </summary>
     /// <returns>Expression</returns>
-    static member clipboard valueExpression =
-        $"@clipboard({valueExpression})"
+    static member clipboard valueExpression = $"@clipboard({valueExpression})"
 
     /// <summary>
     /// @setall(), set all the signals that start with the prefix to the expression provided.
