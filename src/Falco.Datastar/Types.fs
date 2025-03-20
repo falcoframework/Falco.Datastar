@@ -4,6 +4,8 @@ open System
 open System.Text.Json
 open System.Text.Json.Nodes
 open System.Text.RegularExpressions
+open System.Web
+open System.Xml
 open StarFederation.Datastar
 
 module Consts =
@@ -129,7 +131,9 @@ type RequestOptions =
         if backendActionOptions.Abort <> null then
             jsonObject.Add("abort", JsonSerializer.Serialize backendActionOptions.Abort)
 
-        jsonObject.ToString()
+        let options = JsonSerializerOptions()
+        options.WriteIndented <- false
+        HttpUtility.HtmlEncode(jsonObject.ToJsonString(options))
 
 type Debounce private (timeSpan:TimeSpan, leading:bool, noTrail:bool) =
     member _.serialize =
