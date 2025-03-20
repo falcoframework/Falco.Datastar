@@ -4,6 +4,8 @@ open System
 open System.Text.Json
 open System.Text.Json.Nodes
 open System.Text.RegularExpressions
+open System.Web
+open System.Xml
 open StarFederation.Datastar
 
 module Consts =
@@ -129,7 +131,9 @@ type RequestOptions =
         if backendActionOptions.Abort <> null then
             jsonObject.Add("abort", JsonSerializer.Serialize backendActionOptions.Abort)
 
-        jsonObject.ToString()
+        let options = JsonSerializerOptions()
+        options.WriteIndented <- false
+        HttpUtility.HtmlEncode(jsonObject.ToJsonString(options))
 
 type Debounce private (timeSpan:TimeSpan, leading:bool, noTrail:bool) =
     member _.serialize =
@@ -139,7 +143,9 @@ type Debounce private (timeSpan:TimeSpan, leading:bool, noTrail:bool) =
             if noTrail then "notrail"
         } |> String.concat "."
     static member With (timeSpan:TimeSpan, ?leading:bool, ?noTrail:bool) =
-        OnEventModifier.Debounce (Debounce (timeSpan, leading |> Option.defaultValue false, noTrail |> Option.defaultValue false))
+        let leading = defaultArg leading false
+        let noTrail = defaultArg noTrail false
+        OnEventModifier.Debounce (Debounce (timeSpan, leading, noTrail))
 
 and Throttle private (timeSpan:TimeSpan, noLeading:bool, trail:bool) =
     member _.serialize =
@@ -149,7 +155,9 @@ and Throttle private (timeSpan:TimeSpan, noLeading:bool, trail:bool) =
             if trail then "trail"
         } |> String.concat "."
     static member With (timeSpan:TimeSpan, ?noLeading:bool, ?trail:bool) =
-        OnEventModifier.Throttle (Throttle (timeSpan, noLeading |> Option.defaultValue false, trail |> Option.defaultValue false))
+        let noLeading = defaultArg noLeading false
+        let trail = defaultArg trail false
+        OnEventModifier.Throttle (Throttle (timeSpan, noLeading, trail))
 
 and Duration private (timeSpan:TimeSpan, leading:bool) =
     member _.serialize =
@@ -157,8 +165,10 @@ and Duration private (timeSpan:TimeSpan, leading:bool) =
             $"duration.{timeSpan.Milliseconds}ms"
             if leading then "leading"
         } |> String.concat "."
-    static member With (timeSpan:TimeSpan, ?leading:bool) =
-        OnEventModifier.Duration (Duration (timeSpan, leading |> Option.defaultValue false))
+    static member With (timeSpan, ?leading) =
+        let leading = defaultArg leading false
+        OnEventModifier.Duration (Duration (timeSpan, leading))
+    static member Default = Duration.With(TimeSpan.FromSeconds 1)
 
 and OnEventModifier =
     /// <summary>
