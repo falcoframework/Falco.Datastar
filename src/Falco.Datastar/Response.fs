@@ -11,7 +11,7 @@ open Microsoft.AspNetCore.Http
 open StarFederation.Datastar
 open StarFederation.Datastar.Scripts.BrowserConsoleAction
 
-[<RequireQualifiedAccess>]
+[<AbstractClass; Sealed; RequireQualifiedAccess>]
 type Response =
 
     /// <summary>

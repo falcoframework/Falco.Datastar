@@ -8,9 +8,9 @@ open System.Web
 open Falco.Markup
 open StarFederation.Datastar
 
-[<RequireQualifiedAccess>]
+[<AbstractClass; Sealed; RequireQualifiedAccess>]
 type Ds =
-    static member cdnSrc = @"https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.9/bundles/datastar.js"
+    static member cdnSrc = $@"https://cdn.jsdelivr.net/gh/starfederation/datastar@v{Consts.Version}/bundles/datastar.js"
 
     /// <summary>
     /// Shorthand for `Elem.script [ Attr.type' "module"; Attr.src cdnSrc ] []`

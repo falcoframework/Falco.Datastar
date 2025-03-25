@@ -6,6 +6,7 @@ open Microsoft.AspNetCore.Http
 open Microsoft.FSharp.Core
 open StarFederation.Datastar
 
+[<AbstractClass; Sealed; RequireQualifiedAccess>]
 type Request =
 
     /// <summary>

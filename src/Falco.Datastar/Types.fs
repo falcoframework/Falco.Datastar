@@ -5,8 +5,6 @@ open System.Text.Json
 open System.Text.Json.Nodes
 open System.Text.RegularExpressions
 open System.Web
-open System.Xml
-open StarFederation.Datastar
 
 module Consts =
     let mutable dataSlugPrefix = "data"
@@ -88,13 +86,13 @@ type RequestOptions =
           IncludeLocal = false
           Headers = []
           OpenWhenHidden = false
-          RetryInterval = TimeSpan.FromSeconds((float)1)
+          RetryInterval = TimeSpan.FromSeconds(1.0)
           RetryScaler = 2.0
-          RetryMaxWait = TimeSpan.FromSeconds((float)30)
+          RetryMaxWait = TimeSpan.FromSeconds(30.0)
           RetryMaxCount = 10
           Abort = null }
 
-    static member serialized (backendActionOptions:RequestOptions) =
+    static member internal serialized (backendActionOptions:RequestOptions) =
         let jsonObject = JsonObject()
         match backendActionOptions.ContentType with
         | _ when backendActionOptions.ContentType = RequestOptions.defaults.ContentType -> ()
