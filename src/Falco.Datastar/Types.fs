@@ -167,9 +167,9 @@ type Throttle(timeSpan:TimeSpan, noLeading:bool, trail:bool) =
         | Some throttle when throttle.timeSpan = TimeSpan.Zero -> None
         | Some throttle -> Some (Throttle.Serialize throttle)
     static member With (timeSpan:TimeSpan, ?noLeading:bool, ?trail:bool) =
-        let leading = defaultArg noLeading false
-        let noTrail = defaultArg trail false
-        Throttle(timeSpan, leading, noTrail)
+        let noLeading' = defaultArg noLeading false
+        let trail' = defaultArg trail false
+        Throttle(timeSpan, noLeading', trail')
 
 type OnEventModifier =
     /// <summary>

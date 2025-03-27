@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>Falco.Datastar</AssemblyName>
-    <Version>0.9.0</Version>
+    <Version>1.0.0-beta.1</Version>
 
     <!-- General info -->
     <Description>Datastar Bindings for the Falco web toolkit.</Description>
@@ -20,13 +20,13 @@
     <!-- NuGet config -->
     <PackageId>Falco.Datastar</PackageId>
     <PackageTags>fsharp;web;falco;falco-sharp;data-star;</PackageTags>
-    <PackageProjectUrl>https://github.com/pimbrouwers/Falco.Datastar</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/falcoframework/Falco.Datastar</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageIcon>icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/SpiralOSS/Falco.Datastar</RepositoryUrl>
+    <RepositoryUrl>https://github.com/falcoframework/Falco.Datastar</RepositoryUrl>
 
     <!-- SourceLink settings -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
