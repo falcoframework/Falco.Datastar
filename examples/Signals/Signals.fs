@@ -1,3 +1,4 @@
+open System
 open Falco
 open Falco.Markup
 open Falco.Routing
@@ -23,6 +24,35 @@ let handleIndex : HttpHandler =
                         [ Ds.show "$showSignal" ]
                         [ Text.raw "Peek-a-boo!" ]
                 ]
+
+                Elem.hr []
+                Elem.h2 [] [ Text.raw "Ds.onRequestAnimationFrame" ]
+
+                Elem.div [ Ds.signal(sp"frame",0); Ds.onRequestAnimationFrame "$frame++"; Ds.text "$frame" ] []
+
+                Elem.hr []
+                Elem.h2 [] [ Text.raw "Ds.onInterval" ]
+
+                Elem.div [
+                    Ds.signal (sp"intervalSignalOneSecond", false)
+                    Ds.onInterval "$intervalSignalOneSecond = !$intervalSignalOneSecond"
+                    Ds.text "'One Second Interval = ' + $intervalSignalOneSecond"
+                ] []
+
+                Elem.div [
+                    Ds.signal (sp"intervalSignalFiveSecond", false)
+                    Ds.onInterval ("$intervalSignalFiveSecond = !$intervalSignalFiveSecond", TimeSpan.FromSeconds(5.0), leading = true)
+                    Ds.text "'Five Second Interval = ' + $intervalSignalFiveSecond"
+                ] []
+
+                Elem.hr []
+                Elem.h2 [] [ Text.raw "Ds.onEvent" ]
+
+                Elem.div [
+                    Ds.signal (sp"selectedText", "hi")
+                    Ds.onEvent("mouseup", "$selectedText = document.getSelection().toString()")
+                    Ds.onEvent("mouseenter", "$selectedText = 'oooo! The anticipation!'") ] [ Text.raw "Select some of this text" ]
+                Elem.div [ Ds.text "$selectedText" ] [ Text.raw "hi" ]
 
                 Elem.hr []
 
@@ -90,7 +120,7 @@ let handleIndex : HttpHandler =
                     Elem.label [ Attr.for' "r6" ] [ Text.raw "Six" ]
                     Elem.br [
                         // note that this must follow AFTER the refs are created above
-                        Ds.onEvent (SignalChanged (sp"checkBoxSignal"), "$r4.name = $r5.name = $r6.name = ($checkBoxSignal ? 'radioGroup2' : 'radioGroup1')")
+                        Ds.onSignalChange (sp"checkBoxSignal", "$r4.name = $r5.name = $r6.name = ($checkBoxSignal ? 'radioGroup2' : 'radioGroup1')")
                     ]
                 ]
 

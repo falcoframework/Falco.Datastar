@@ -24,25 +24,29 @@ type Ds =
     /// Has an optional ifMissing flag. https://data-star.dev/reference/attribute_plugins#modifiers
     /// https://data-star.dev/reference/attribute_plugins#data-signals
     /// </summary>
-    /// <param name="signalPath">The path to add; kebab-case will be converted to pascal-case on return</param>
+    /// <param name="signalPath">The path to add; kebab-case will be converted to pascal-case on return.
+    /// Prefix with underscore to keep the signal local to the browser</param>
     /// <param name="signalValue">The initial value to set the signal</param>
     /// <param name="ifMissing">Signal is only merged if it doesn't already exist</param>
     /// <returns>Attribute</returns>
     static member signal<'T> (signalPath:SignalPath, signalValue:'T, ?ifMissing) =
-        let ifMissing' = defaultArg ifMissing false |> Bool.boolToString "__ifmissing" ""
-        let signalValue2 = JsonValue.Create(signalValue)
-        Attr.createBool $"{Consts.dataSlugPrefix}-signals-{signalPath |> SignalPath.value |> _.ToKebab()}{ifMissing'}='{signalValue2.ToJsonString()}'"
+        let ifMissing' = defaultArg ifMissing false |> Bool.eitherOr "__ifmissing" ""
+        let signalValue' = JsonValue.Create(signalValue).ToJsonString()
+        Attr.createBool $"{Consts.dataSlugPrefix}-signals-{signalPath |> SignalPath.kebabValue}{ifMissing'}='{signalValue'}'"
 
     /// <summary>
     /// Merges one or more signals into the existing signals.
     /// https://data-star.dev/reference/attribute_plugins#data-signals
     /// </summary>
-    /// <param name="signals">An object that will be serialized via System.Text.JsonSerializer.Serialize()</param>
+    /// <param name="signals">An object that will be serialized via System.Text.JsonSerializer.Serialize()
+    /// Prefix signal paths with underscore to keep the signal local to the browser</param>
+    /// <param name="ifMissing">Signals are only merged if it doesn't already exist</param>
     /// <param name="options">Optional options to be passed to the serializer</param>
     /// <returns>Attribute</returns>
-    static member signals (signals, ?options:JsonSerializerOptions) =
+    static member signals (signals, ?ifMissing, ?options:JsonSerializerOptions) =
+        let ifMissing' = defaultArg ifMissing false |> Bool.eitherOr "__ifmissing" ""
         let options = defaultArg options JsonSerializerOptions.Default
-        Attr.create $"{Consts.dataSlugPrefix}-signals" (HttpUtility.HtmlEncode (JsonSerializer.Serialize (signals, options)))
+        Attr.create $"{Consts.dataSlugPrefix}-signals{ifMissing'}" (HttpUtility.HtmlEncode (JsonSerializer.Serialize (signals, options)))
 
     /// <summary>
     /// Bind an HTML attribute's value to an expression.
@@ -62,7 +66,7 @@ type Ds =
     /// <param name="signalPath">The signal to bind to</param>
     /// <returns>Attribute</returns>
     static member bind (signalPath:SignalPath) =
-        Attr.createBool $"{Consts.dataSlugPrefix}-bind-{signalPath |> SignalPath.value |> _.ToKebab()}"
+        Attr.createBool $"{Consts.dataSlugPrefix}-bind-{signalPath |> SignalPath.kebabValue}"
 
     /// <summary>
     /// Adds or removes a class from the element based on an expression.
@@ -91,7 +95,7 @@ type Ds =
     /// <param name="expression">Expression to be evaluated, https://data-star.dev/guide/datastar_expressions</param>
     /// <returns>Attribute</returns>
     static member computed (signalPath, expression) =
-        Attr.create $"{Consts.dataSlugPrefix}-computed-{signalPath |> SignalPath.value |> _.ToKebab()}" expression
+        Attr.create $"{Consts.dataSlugPrefix}-computed-{signalPath |> SignalPath.kebabValue}" expression
 
     /// <summary>
     /// Create a signal that refers to the HTML element it is assigned to; after a data-ref is created, you can access attributes of the element.
@@ -105,31 +109,25 @@ type Ds =
         Attr.create $"{Consts.dataSlugPrefix}-ref" (signalPath |> SignalPath.value)
 
     /// <summary>
-    /// Persists signals in storage. Useful for storing values between page loads.
+    /// Persists signals in storage. Useful for storing values between page loads
     /// https://data-star.dev/reference/attribute_plugins#data-persist
     /// </summary>
-    /// <param name="keyName">Optional name for saving into storage; default = 'datastar'</param>
     /// <param name="inSession">Store the signals in session storage; default = local</param>
     /// <returns>Attribute</returns>
-    static member persistAllSignals (?keyName, ?inSession) =
-        let keyName = defaultArg keyName "" |> _.Replace(" ", "")
-        let keyName' = if (keyName |> String.IsNullOrWhiteSpace) then "" else $"-{keyName}"
-        let inSession' = defaultArg inSession false |> Bool.boolToString "__session" ""
-        Attr.createBool $"{Consts.dataSlugPrefix}-persist{keyName'}{inSession'}"
+    static member persistAllSignals ?inSession =
+        let inSession' = defaultArg inSession false |> Bool.eitherOr "__session" ""
+        Attr.createBool $"{Consts.dataSlugPrefix}-persist{inSession'}"
 
     /// <summary>
     /// Persists signals in storage. Useful for storing values between page loads.
     /// https://data-star.dev/reference/attribute_plugins#data-persist
     /// </summary>
     /// <param name="signalPaths">A list of signal paths that should be saved to storage</param>
-    /// <param name="keyName">Optional name for saving into storage; default = 'datastar'</param>
     /// <param name="inSession">Store the signals in session storage; default = local</param>
     /// <returns>Attribute</returns>
-    static member persistSignals (signalPaths, ?keyName:string, ?inSession) =
-        let keyName = defaultArg keyName "" |> _.Replace(" ", "")
-        let keyName' = if (keyName |> String.IsNullOrWhiteSpace) then "" else $"-{keyName}"
-        let inSession' = defaultArg inSession false |> Bool.boolToString "__session" ""
-        Attr.create $"{Consts.dataSlugPrefix}-persist{keyName'}{inSession'}" (signalPaths |> Seq.map SignalPath.value |> String.concat " ")
+    static member persistSignals (signalPaths, ?inSession) =
+        let inSession' = defaultArg inSession false |> Bool.eitherOr "__session" ""
+        Attr.create $"{Consts.dataSlugPrefix}-persist{inSession'}" (signalPaths |> Seq.map SignalPath.value |> String.concat " ")
 
     /// <summary>
     /// Replaces the url in the browser's address bar without reloading the page.
@@ -152,23 +150,6 @@ type Ds =
     /// <returns>Attribute</returns>
     static member customValidity validityExpression =
         Attr.create $"{Consts.dataSlugPrefix}-custom-validity" validityExpression
-
-    /// <summary>
-    /// Runs an expression when the element intersects with the viewport.
-    /// https://data-star.dev/reference/attribute_plugins#data-intersects
-    /// </summary>
-    /// <param name="expression">Expression to run based on intersection</param>
-    /// <param name="visibility">Sets it to trigger only if the element is half or fully viewed</param>
-    /// <param name="onlyOnce">Only triggers the event once</param>
-    /// <returns>Attribute</returns>
-    static member intersects (expression, ?visibility, ?onlyOnce) =
-        let visibility' =
-            match visibility with
-            | Some Half -> "__half"
-            | Some Full -> "__full"
-            | _ -> ""
-        let onlyOnce' = defaultArg onlyOnce false |> Bool.boolToString "__once" ""
-        Attr.create $"{Consts.dataSlugPrefix}-intersects{visibility'}{onlyOnce'}" expression
 
     /// <summary>
     /// Scrolls the element into view. Useful when updating the DOM from the backend, and you want to scroll to the new content.
@@ -214,13 +195,13 @@ type Ds =
 
     /// <summary>
     /// This will create a signal and set its value to `true` while a server request is in flight, otherwise `false`.
-    /// Place this alongside any of the Ds.get, Ds.post, etc
+    /// Place this in the same element as a Ds.get, Ds.post, etc
     /// https://data-star.dev/reference/attribute_plugins#data-indicator
     /// </summary>
     /// <param name="signalPath">The name of the signal to create</param>
     /// <returns>Attribute</returns>
     static member indicator signalPath =
-        Attr.createBool $"{Consts.dataSlugPrefix}-indicator-{signalPath |> SignalPath.value |> _.ToKebab()}"
+        Attr.createBool $"{Consts.dataSlugPrefix}-indicator-{signalPath |> SignalPath.kebabValue}"
 
     /// <summary>
     /// Datastar walks the entire DOM and applies plugins to each element it encounters.
@@ -247,69 +228,107 @@ type Ds =
     /// Attaches an event listener to an element, executing the expression whenever the event is triggered.
     /// https://data-star.dev/reference/attribute_plugins#data-on
     /// </summary>
-    /// <param name="event">The event to listen to, e.g. click, load. https://developer.mozilla.org/en-US/docs/Web/Events</param>
+    /// <param name="eventName">The event to listen to, i.e. https://developer.mozilla.org/en-US/docs/Web/Events</param>
     /// <param name="expression">The expression to evaluate when the event is triggered. https://data-star.dev/guide/datastar_expressions</param>
     /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
     /// <returns>Attribute</returns>
-    static member onEvent (event, expression, ?modifiers) =
-        let modifiers = defaultArg modifiers []
-        Attr.create (OnEvent.serializeWithModifiers modifiers event) expression
+    static member onEvent (eventName, expression, ?modifiers:OnEventModifier list) =
+        let modifiers' = defaultArg modifiers []
+        Attr.create (OnEvent.Serialize(eventName, modifiers')) expression
 
     /// <summary>
-    /// Short hand for `onEvent OnEvent.Click`. Adds an on-click listener to the element and executes the expression.
+    /// Adds an on-click listener to the element and executes the expression.
     /// https://data-star.dev/reference/attribute_plugins#data-on
     /// </summary>
     /// <param name="expression">The expression to evaluate when the event is triggered. https://data-star.dev/guide/datastar_expressions</param>
     /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
     /// <returns>Attribute</returns>
     static member onClick (expression, ?modifiers) =
-        Ds.onEvent (OnEvent.Click, expression, ?modifiers = modifiers)
+        Ds.onEvent ("on-click", expression, ?modifiers = modifiers)
 
     /// <summary>
-    /// Short hand for `onEvent OnEvent.Load`. Fires the expression when the element is loaded.
+    /// Fires the expression when the element is loaded.
     /// https://data-star.dev/reference/attribute_plugins#special-events
     /// </summary>
     /// <param name="expression">The expression to evaluate when the event is triggered. https://data-star.dev/guide/datastar_expressions</param>
-    /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
+    /// <param name="delay">The time to wait before executing the expression</param>
     /// <returns>Attribute</returns>
-    static member onLoad (expression, ?modifiers) =
-        Ds.onEvent (OnEvent.Load, expression, ?modifiers = modifiers)
+    static member onLoad (expression, ?delay) =
+        let delay = defaultArg delay TimeSpan.Zero
+        let delay' = delay = TimeSpan.Zero |> Bool.eitherOr "" $"__delay.{delay.TotalMilliseconds}ms"
+        Attr.create $"{Consts.dataSlugPrefix}-on-load{delay'}" expression
 
     /// <summary>
-    /// Short hand for `onEvent OnEvent.Load`. Fires the expression when the element is loaded.
+    /// Fires the expression when the element is loaded.
     /// https://data-star.dev/reference/attribute_plugins#special-events
     /// </summary>
     /// <param name="expression">The expression to evaluate when the event is triggered. https://data-star.dev/guide/datastar_expressions</param>
-    /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
+    /// <param name="debounce"></param>
+    /// <param name="throttle"></param>
     /// <returns>Attribute</returns>
-    static member onSignalsChanged (expression, ?modifiers) =
-        Ds.onEvent (OnEvent.SignalsChanged, expression, ?modifiers = modifiers)
+    static member onAnySignalChange (expression, ?debounce:Debounce, ?throttle:Throttle) =
+        let debounce' = debounce |> Debounce.SerializeOption |> Option.map (fun str -> $"__{str}") |> Option.defaultValue ""
+        let throttle' = throttle |> Throttle.SerializeOption |> Option.map (fun str -> $"__{str}") |> Option.defaultValue ""
+        Attr.create $"{Consts.dataSlugPrefix}-on-signal-change{debounce'}{throttle'}" expression
 
     /// <summary>
-    /// Short hand for `onEvent OnEvent.Load`. Fires the expression when the element is loaded.
+    /// Fires the expression when the element is loaded.
     /// https://data-star.dev/reference/attribute_plugins#special-events
     /// </summary>
     /// <param name="signalPath">The signal to watch for a change</param>
     /// <param name="expression">The expression to evaluate when the event is triggered. https://data-star.dev/guide/datastar_expressions</param>
-    /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
+    /// <param name="debounce"></param>
+    /// <param name="throttle"></param>
     /// <returns>Attribute</returns>
-    static member onSignalChanged (signalPath:SignalPath, expression, ?modifiers) =
-        Ds.onEvent (OnEvent.SignalChanged(signalPath), expression, ?modifiers = modifiers)
+    static member onSignalChange (signalPath:SignalPath, expression, ?debounce:Debounce, ?throttle:Throttle) =
+        let debounce' = debounce |> Debounce.SerializeOption |> Option.map (fun str -> $"__{str}") |> Option.defaultValue ""
+        let throttle' = throttle |> Throttle.SerializeOption |> Option.map (fun str -> $"__{str}") |> Option.defaultValue ""
+        Attr.create $"{Consts.dataSlugPrefix}-on-signal-change-{signalPath |> SignalPath.kebabValue}{debounce'}{throttle'}" expression
 
     /// <summary>
-    /// Short hand for `onEvent OnEvent.Interval`. Evaluates the expression on a steady interval
+    /// Evaluates the expression on a steady interval
     /// </summary>
     /// <param name="expression">The expression to evaluate when the event is triggered. https://data-star.dev/guide/datastar_expressions</param>
     /// <param name="interval">The time between each evaluation; default = Duration.With(TimeSpan.FromSeconds 1, false)</param>
-    /// <param name="modifiers">To modify the behavior of the event. https://data-star.dev/reference/attribute_plugins#modifiers-1</param>
-    static member onInterval (expression, ?interval, ?modifiers) =
-        let interval = defaultArg interval Duration.Default
-        let modifiers = defaultArg modifiers ([] : OnEventModifier list)
-        let modifiers =
-            if (modifiers |> List.exists _.IsDuration |> not && interval <> Duration.Default)
-            then interval :: modifiers
-            else modifiers
-        Ds.onEvent (OnEvent.Interval, expression, modifiers)
+    /// <param name="leading">Execute the first interval immediately; default = false</param>
+    /// <returns>Attribute</returns>
+    static member onInterval (expression, ?interval:TimeSpan, ?leading) =
+        let leading' = defaultArg leading false |> Bool.eitherOr ".leading" ""
+        let interval' = interval |> Option.map (fun int' -> $"__duration.{int'.TotalMilliseconds}ms{leading'}") |> Option.defaultValue ""
+        Attr.create $"{Consts.dataSlugPrefix}-on-interval{interval'}" expression
+
+    /// <summary>
+    /// Runs an expression when the element intersects with the viewport.
+    /// https://data-star.dev/reference/attribute_plugins#data-on-intersects
+    /// </summary>
+    /// <param name="expression">Expression to run when element is intersected</param>
+    /// <param name="visibility">Sets it to trigger only if the element is half or fully viewed</param>
+    /// <param name="onlyOnce">Only triggers the event once</param>
+    /// <param name="debounce"></param>
+    /// <param name="throttle"></param>
+    /// <returns>Attribute</returns>
+    static member onIntersect (expression, ?visibility, ?onlyOnce, ?debounce:Debounce, ?throttle:Throttle) =
+        let visibility' =
+            match visibility with
+            | Some Half -> "__half"
+            | Some Full -> "__full"
+            | _ -> ""
+        let onlyOnce' = defaultArg onlyOnce false |> Bool.eitherOr "__once" ""
+        let debounce' = debounce |> Debounce.SerializeOption |> Option.map (fun str -> $"__{str}") |> Option.defaultValue ""
+        let throttle' = throttle |> Throttle.SerializeOption |> Option.map (fun str -> $"__{str}") |> Option.defaultValue ""
+        Attr.create $"{Consts.dataSlugPrefix}-on-intersect{visibility'}{onlyOnce'}{debounce'}{throttle'}" expression
+
+    /// <summary>
+    /// Runs an expression on every request animation frame event.
+    /// https://data-star.dev/reference/attribute_plugins#data-on-raf
+    /// </summary>
+    /// <param name="expression">Expression to run on every request animation frame event</param>
+    /// <param name="debounce"></param>
+    /// <param name="throttle"></param>
+    static member onRequestAnimationFrame (expression, ?debounce:Debounce, ?throttle:Throttle) =
+        let debounce' = debounce |> Debounce.SerializeOption |> Option.map (fun str -> $"__{str}") |> Option.defaultValue ""
+        let throttle' = throttle |> Throttle.SerializeOption |> Option.map (fun str -> $"__{str}") |> Option.defaultValue ""
+        Attr.create $"{Consts.dataSlugPrefix}-on-raf{debounce'}{throttle'}" expression
 
     /// <summary>
     /// Actions
@@ -317,15 +336,15 @@ type Ds =
     static member private backendAction actionOptions action =
         match (action, actionOptions) with
         | Get url, None -> $@"@get('{url}')"
-        | Get url, Some options -> $"@get('{url}','{options |> RequestOptions.serialized}')"
+        | Get url, Some options -> $"@get('{url}','{options |> RequestOptions.Serialize}')"
         | Post url, None -> $@"@post('{url}')"
-        | Post url, Some options -> $"@post('{url}','{options |> RequestOptions.serialized}')"
+        | Post url, Some options -> $"@post('{url}','{options |> RequestOptions.Serialize}')"
         | Put url, None -> $@"@put('{url}')"
-        | Put url, Some options -> $"@put('{url}','{options |> RequestOptions.serialized}')"
+        | Put url, Some options -> $"@put('{url}','{options |> RequestOptions.Serialize}')"
         | Patch url, None -> $@"@patch('{url}')"
-        | Patch url, Some options -> $"@patch('{url}','{options |> RequestOptions.serialized}')"
+        | Patch url, Some options -> $"@patch('{url}','{options |> RequestOptions.Serialize}')"
         | Delete url, None -> $@"@delete('{url}')"
-        | Delete url, Some options -> $"@delete('{url}','{options |> RequestOptions.serialized}')"
+        | Delete url, Some options -> $"@delete('{url}','{options |> RequestOptions.Serialize}')"
 
     /// <summary>
     /// Creates a @get action for an expression with options. The action sends a GET request with the given url.

@@ -41,19 +41,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\assets\icon.png">
+      <Pack>true</Pack>
+      <PackagePath></PackagePath>
+      <Link>icon.png</Link>
+    </None>
+    <None Include="..\..\README.md">
+      <Pack>true</Pack>
+      <PackagePath>/</PackagePath>
+      <Link>README.md</Link>
+    </None>
     <Compile Include="Utility.fs" />
     <Compile Include="Types.fs" />
     <Compile Include="Ds.fs" />
     <Compile Include="Request.fs" />
     <Compile Include="Response.fs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="../../assets/icon.png">
-      <Pack>true</Pack>
-      <PackagePath>$(PackageIconUrl)</PackagePath>
-    </None>
-    <None Include="../../README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 # Falco.Datastar
 
-[![NuGet Version](https://img.shields.io/nuget/v/Falco.Htmx.svg)](https://www.nuget.org/packages/Falco.Datastar)
-[![build](https://github.com/SpiralOSS/Falco.Datastar/actions/workflows/build.yml/badge.svg)](https://github.com/SpiralOSS/Falco.Datastar/actions/workflows/build.yml)
+[![NuGet Version](https://img.shields.io/nuget/v/Falco.Datastar.svg)](https://www.nuget.org/packages/Falco.Datastar)
+[![build](https://github.com/pimbrouwers/Falco.Datastar/actions/workflows/build.yml/badge.svg)](https://github.com/pimbrouwers/Falco.Datastar/actions/workflows/build.yml)
 
 ```fsharp
 open Falco.Markup
@@ -14,7 +14,7 @@ let demo =
 ```
 
 [Falco.Datastar](https://github.com/SpiralOSS/Falco.Datastar) brings type-safe [Datastar](https://data-star.dev) support to [Falco](https://github.com/pimbrouwers/Falco).
-It provides a complete mapping of all [plugin attributes](https://data-star.dev/reference/attribute_plugins) and [plugin actions](#https://data-star.dev/reference/action_plugins).
+It provides a complete mapping of all [attribute plugins](https://data-star.dev/reference/attribute_plugins) and [action plugins](https://data-star.dev/reference/action_plugins).
 As well as helpers for retrieving the signals and responding with Datastar Server Side Events.
 
 ## Key Features
@@ -127,7 +127,7 @@ Some important notes: Signals defined later in the DOM tree override those defin
 - [Miscellaneous Actions](#miscellaneous-actions)
 - [When to $](#when-to-)
 
-### _Creating Signals_
+## _Creating Signals_
 
 Create signals, which are reactive variables that automatically propagate their value to all references of the signal.
 
@@ -151,7 +151,7 @@ As a convenience, you can create a single signal with the option to add it only 
 **Important note**: if you use kebab-case, it will be returned in pascal-case.
 
 ```fsharp
-Elem.div [ Ds.signal ("signalPath", "signalValue", ifMissing = true) ] []
+Elem.div [ Ds.signal (sp"signalPath", "signalValue", ifMissing = true) ] []
 ```
 
 ### [Ds.computed : `data-computed`](https://data-star.dev/reference/attribute_plugins#data-computed)
@@ -194,7 +194,7 @@ The previous example uses a couple functions we haven't covered yet. [`Ds.onClic
 [`Ds.attr'`](#dsattr--data-attr) and [`Ds.show`](#dsshow--data-show) are evaluating the Datastar expression `$fetching` and are assigning `disabled` attribute and
 show/hiding the div, respectively, based on the `fetching` signal value's "true-ness".
 
-### _Signal Binding_
+## _Signal Binding_
 
 Binding to a signal means tying an attribute or value of an element to a value that can be modified by another effect.
 Example: setting the innerText of a `<div>` to a value that is updated by a server; or, toggling an HTML `class` on an element.
@@ -228,7 +228,7 @@ Elem.div [ Ds.attr' "title" "$foo" ] []
 
 ### [Ds.show : `data-show`](https://data-star.dev/reference/attribute_plugins#data-show)
 
-Show or hides an element based on whether an expression evaluates to true or false.
+Show or hides an element based on whether a [Datastar expression](https://data-star.dev/guide/datastar_expressions) evaluates to true or false.
 For anything with custom requirements, use [`data-class`](#dsclass--data-class) instead.
 
 ```fsharp
@@ -237,16 +237,15 @@ Elem.div [ Ds.show "$foo" ] []
 
 ### [Ds.class' : `data-class`](https://data-star.dev/reference/attribute_plugins#data-class)
 
-Adds or removes a class to or from an element based on the "true-ness" of an expression.
+Adds or removes a class to or from an element based on the "true-ness" of a [Datastar expression](https://data-star.dev/guide/datastar_expressions).
 
 ```fsharp
-Elem.div [ Ds.class' "hidden" "$foo" ]
+Elem.div [ Ds.class' "hidden" "$foo" ]  // add the 'hidden' class when $foo evaluates to true
 ```
 
-### [`data-view-transition`](https://data-star.dev/reference/attribute_plugins#data-view-transition)
+### [Ds.viewTransition : `data-view-transition`](https://data-star.dev/reference/attribute_plugins#data-view-transition)
 
-Sets the [`view-transition-name`](https://developer.mozilla.org/en-US/docs/Web/CSS/view-transition-name) style attribute
-explicitly.
+Sets the [`view-transition-name`](https://developer.mozilla.org/en-US/docs/Web/CSS/view-transition-name) style attribute explicitly.
 
 ```fsharp
 Elem.div [ Ds.viewTransition "$foo" ]
@@ -266,51 +265,39 @@ Elem.form [] [
 ]
 ```
 
-### _Events and Triggers_
+## _Events and Triggers_
 
 Events and triggers result in [Datastar expressions](https://data-star.dev/guide/datastar_expressions) being executed. This can possibly result in signal changes and other expressions being run.
 Example: clicking a button to send a request or update the visibility on an element via [Ds.show](#dsshow--data-show).
 
 ### [Ds.onEvent : `data-on`](https://data-star.dev/reference/attribute_plugins#data-on)
 
-Attaches an event listener to an element, executing an expression whenever the event is triggered.
+Attaches an event listener to an element, executing a [Datastar expression](https://data-star.dev/guide/datastar_expressions) whenever the event is triggered.
+An `evt` variable that represents the event object is available in the expression.
 
 ```fsharp
-Elem.div [ Ds.onEvent (SignalsChanged, "$foo = 'updated'") ] []
-Elem.div [ Ds.onEvent (Interval, "$show = !$show") ] []
+Elem.div [ Ds.onEvent("mouseup", "$selection = document.getSelection().toString()") ] [ Text.raw "Highlight some of me!" ]
+Elem.div [ Ds.onEvent("mouseenter", "$show = !$show"); Ds.onEvent("mouseexit", "$show = !$show") ] []
 ```
 
-```fsharp
-type OnEvent =
-    | Click  // Triggered when the element is clicked
-    | Load  // Triggered when the page loads
-    | Interval  // Triggered every 1 second; can be modified with Duration.With(TimeSpan.FromSeconds _)
-    | RequestAnimationFrame  // Triggered on every requestAnimationFrame event. https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame
-    | SignalsChanged  // Triggered when any signal changes
-    | SignalChanged of signalPath:SignalPath  // Triggered when a specific signal changes
-    | Other of string  // A custom event; https://developer.mozilla.org/en-US/docs/Web/Events
-```
-
-There are helper methods for `Ds.onEvent(Click, ...)` and `Ds.onEvent(Load, ...)`:
+There are helper methods for `Ds.onEvent("click", ...)` and `Ds.onEvent("load", ...)`:
 
 ```fsharp
-Elem.button [ Ds.onClick "$show = !$show" ] [ Text.raw "Hide" ]
+Elem.button [ Ds.onClick "$show = !$show" ] [ Text.raw "Peek-a-boo!" ]
 Elem.div [ Ds.onLoad (Ds.get "/edit") ] []
 ```
 
-#### [`data-on` Modifiers](https://data-star.dev/reference/attribute_plugins#modifiers-1)
+#### [`data-on` Modifiers](https://data-star.dev/reference/attribute_plugins#modifiers-5)
 
-Modifiers allow you to alter the behavior when events are triggered. (Modifiers with a '*' can only be used with the [built-in events](https://data-star.dev/reference/attribute_plugins#special-events)).
+Modifiers allow you to alter the behavior when events are triggered. (Modifiers with a '*' can only be used with the [built-in events](https://developer.mozilla.org/en-US/docs/Web/Events)).
 
 ```fsharp
  type OnEventModifier =
     | Once     // * - can only be used with built-in events
     | Passive  // * - can only be used with built-in events
     | Capture  // * - can only be used with built-in events
-    | Delay of TimeSpan
     | Debounce of Debounce  // timespan, leading, and notrail
     | Throttle of Throttle  // timepan, noleading, and trail
-    | Duration of Duration  // timespan and leading
     | ViewTransition
     | Window
     | Outside
@@ -321,7 +308,7 @@ Modifiers allow you to alter the behavior when events are triggered. (Modifiers 
 As an example:
 ```fsharp
 Elem.div [
-    Ds.onEvent (Click, "$foo = ''", [ Window; Debounce.With(TimeSpan.FromSeconds(1), leading = true) ])
+    Ds.onEvent ("click", "$foo = ''", [ Window; Debounce.With(TimeSpan.FromSeconds(1.0), leading = true) ])
     ] []
 ```
 
@@ -330,29 +317,63 @@ Results in:
 <div data-on-click__window__debounce.1000ms.leading="$foo = ''"></div>
 ```
 
-### [Ds.intersects : `data-intersects`](https://data-star.dev/reference/attribute_plugins#data-intersects)
+### [Ds.onIntersect : `data-on-intersect`](https://data-star.dev/reference/attribute_plugins#data-on-intersect)
 
-Fires an expression when the element intersects with the viewport.
-
-```fsharp
-Elem.div [ Ds.intersects "$intersected = true" ] []
-
-Elem.div [ Ds.intersects ("$intersected = true", visibility = Full) ] []
-
-Elem.div [ Ds.intersects ("$intersected = true", visibility = Half, onlyOnce = true) ] []
-```
-
-### [Ds.scrollIntoView : `data-scroll-into-view`](https://data-star.dev/reference/attribute_plugins#data-scroll-into-view)
-
-Scrolls the element into view. Useful when updating the DOM from the backend, and you want to scroll to the new content.
+Runs an expression when the element intersects with the viewport.
 
 ```fsharp
-Elem.div [ Ds.scrollIntoView (Smooth, Center, Center) ] []
+Elem.div [ Ds.onIntersect "$intersected = true" ] []
 
-Elem.div [ Ds.scrollIntoView (Auto, Left, Bottom, focus = true) ] []
+Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Full) ] []
+
+Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Half, onlyOnce = true) ] []
+
+Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Half, onlyOnce = true, debounce = Debounce.With(TimeSpan.FromSeconds(1.0))) ] []
+
+Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Half, onlyOnce = true, throttle = Throttle.With(TimeSpan.FromSeconds(1.0))) ] []
 ```
 
-### _Actions and Functions_
+### [Ds.onSignalChange | Ds.onAnySignalChange : `data-on-signal-change`](https://data-star.dev/reference/attribute_plugins#data-on-signal-change)
+
+Runs an expression when another signal changes. This should be used sparingly, as it is cost intensive.
+
+```fsharp
+Elem.div [ Ds.onAnySignalChange "$show = !$show" ] []
+
+Elem.div [ Ds.onSignalChange (sp"foo", "$show = !$show") ] []
+```
+
+### [Ds.onRequestAnimationFrame : `data-on-raf`](https://data-star.dev/reference/attribute_plugins#data-on-raf)
+
+Runs an expression on every request animation frame event.
+
+```fsharp
+Elem.div [ Ds.onRequestAnimationFrame "$frame++" ] []
+
+Elem.div [ Ds.onRequestAnimationFrame ("$frame++", debounce = Debounce.With(TimeSpan.FromSeconds(1.0))) ] []
+
+Elem.div [ Ds.onRequestAnimationFrame ("$frame++", throttle = Throttle.With(TimeSpan.FromSeconds(1.0))) ] []
+```
+
+### [Ds.onInterval : `data-on-interval`](https://data-star.dev/reference/attribute_plugins#data-on-interval)
+
+Runs an expression at a regular interval. The interval duration defaults to 1 second and can be modified by passing a `TimeSpan`
+
+```fsharp
+Elem.div [
+    Ds.signal (sp"intervalSignalOneSecond", false)
+    Ds.onInterval "$intervalSignalOneSecond = !$intervalSignalOneSecond"
+    Ds.text "'One Second Interval = ' + $intervalSignalOneSecond"
+] []
+
+Elem.div [
+    Ds.signal (sp"intervalSignalFiveSecond", false)
+    Ds.onInterval ("$intervalSignalFiveSecond = !$intervalSignalFiveSecond", TimeSpan.FromSeconds(5.0), leading = true)
+    Ds.text "'Five Second Interval = ' + $intervalSignalFiveSecond"
+] []
+```
+
+## _Actions and Functions_
 
 Datastar provides a number of actions and functions that can be used in [Datastar expressions](https://data-star.dev/guide/datastar_expressions)
 for making server requests and manipulating signals.
@@ -385,7 +406,7 @@ Each request action can also be provided a number of options, explained in depth
 
 ```fsharp
 Elem.button [ Ds.onClick (Ds.get ("/endpoint",
-                                  { RequestOptions.defaults with
+                                  { RequestOptions.Defaults with
                                         IncludeLocal = true;
                                         Headers = [ ("X-Csrf-Token", "JImikTbsoCYQ9...") ]
                                         OpenWhenHidden = true }
@@ -418,16 +439,23 @@ Persists signals in local or session storage. Useful for storing values between 
 Elem.div [ Ds.persistAllSignals ] []
 
 // persist the signals `foo` and `bar` in local storage
-Elem.div [ Ds.persistSignals [ "foo"; "bar" ] []
-
-// persist the signals `foo` and `bar` in local storage with "mykey" as the key
-Elem.div [ Ds.persistSignals ( [ "foo"; "bar" ], keyName = "mykey") []
+Elem.div [ Ds.persistSignals [ sp"foo"; sp"bar" ] ] []
 
 // persist all signals in session storage
 Elem.div [ Ds.persistAllSignals (inSession = true) ] []
 ```
 
-### _Miscellaneous Actions_
+### [Ds.scrollIntoView : `data-scroll-into-view`](https://data-star.dev/reference/attribute_plugins#data-scroll-into-view)
+
+Scrolls the element into view. Useful when updating the DOM from the backend, and you want to scroll to the new content.
+
+```fsharp
+Elem.div [ Ds.scrollIntoView (Smooth, Center, Center) ] []
+
+Elem.div [ Ds.scrollIntoView (Auto, Left, Bottom, focus = true) ] []
+```
+
+## _Miscellaneous Actions_
 
 Helper actions that can be used in [Datastar expressions](https://data-star.dev/guide/datastar_expressions) and performing browser operations.
 
@@ -481,7 +509,7 @@ Elem.div [ Ds.ignoreThis ] [
 ]
 ```
 
-### _When to `$`_
+## _When to `$`_
 
 You may have noticed in the sample code that the `$` is used in some places, but not others. At first, it might be
 confusing when a `$` is required, but it really isn't all that complicated when you think of the arguments as
@@ -513,7 +541,7 @@ Sections:
 - [Responding with HTML Fragments](#responding-with-html-fragments)
 - [Streaming Server Side Events](#streaming-server-side-events)
 
-### _Reading Signal Values_
+## _Reading Signal Values_
 
 All requests are sent with a `{datastar: *}` object containing the current signals (you can keep signals local to the client
 by prefixing the name with an underscore). When using a `GET` request, the signals are sent as a query parameter; otherwise,
@@ -559,7 +587,7 @@ let httpHandler : HttpHandler = (fun ctx -> task {
     })
 ```
 
-### _Responding with Signals_
+## _Responding with Signals_
 
 ### `Response.ofMergeSignals<'T>`
 
@@ -593,7 +621,7 @@ Given a `seq` of signal paths, will remove that signals from the client.
 Response.ofRemoveSignals [ sp"user.firstName"; sp"user.lastName" ]
 ```
 
-### _Responding with HTML Fragments_
+## _Responding with HTML Fragments_
 
 HTML fragments are sent to client and replace the current element (matching on the `id` attribute) with the one that is sent.
 The following functions are `HttpHandler`s that will send down a single Server Sent Event.
@@ -622,7 +650,7 @@ Will send a command to client Datastar to remove fragments with the matching sel
 Response.ofRemoveFragments [ sel"hello" ]
 ```
 
-### _Streaming Server Side Events_
+## _Streaming Server Side Events_
 
 Within the `Response` module there are the `of` methods that are for sending single server side events and then closing the connection.
 But, [Datastar's](https://data-star.dev) true power is unlocked when the client keep a connection open to the server
@@ -650,4 +678,4 @@ let handleStream = (fun ctx -> task {
         counter <- counter + 1
 ```
 
-See the [Streaming example](examples/Streaming/) for more.
+See the [Streaming example](examples/Streaming) for more.

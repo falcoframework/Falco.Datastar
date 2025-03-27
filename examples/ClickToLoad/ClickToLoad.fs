@@ -32,8 +32,7 @@ let handleIndex : HttpHandler =
 let appendRowsFragmentOptions =
     { MergeFragmentsOptions.defaults
         with Selector = ValueSome (sel"#agent_rows")
-             MergeMode = Append
-             SettleDuration = TimeSpan.FromSeconds(1L) }
+             MergeMode = Append }
 
 let handleMoreAgents : HttpHandler = (fun ctx -> task {
     // start the text/event-stream
@@ -44,7 +43,7 @@ let handleMoreAgents : HttpHandler = (fun ctx -> task {
     let lastAgentShown = lastAgentShown |> ValueOption.get
 
     // remove the button
-    do! Response.sseRemoveFragments (sse, "#loadMoreAgentsButton", { RemoveFragmentsOptions.defaults with SettleDuration = TimeSpan.Zero })
+    do! Response.sseRemoveFragments (sse, "#loadMoreAgentsButton")
 
     // N more agents
     do!

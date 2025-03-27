@@ -32,7 +32,7 @@ let handleIndex ctx = task {
             Elem.body [
                 Ds.signal (Consts.userSignalName, user)
                 Ds.signal (Consts.displaySignalName, Consts.displaySignalValueBadApple)
-                Ds.onSignalChanged (Consts.displaySignalName, Ds.post "/channel")
+                Ds.onSignalChange (Consts.displaySignalName, Ds.post "/channel")
                 Ds.persistSignals ([ Consts.userSignalName ], inSession = true)
                 Ds.safariStreamingFix
             ] [

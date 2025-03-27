@@ -81,7 +81,7 @@ type RequestOptions =
       RetryMaxCount: int
       Abort: obj }
 
-    static member defaults =
+    static member Defaults =
         { ContentType = Json
           IncludeLocal = false
           Headers = []
@@ -92,10 +92,10 @@ type RequestOptions =
           RetryMaxCount = 10
           Abort = null }
 
-    static member internal serialized (backendActionOptions:RequestOptions) =
+    static member internal Serialize (backendActionOptions:RequestOptions) =
         let jsonObject = JsonObject()
         match backendActionOptions.ContentType with
-        | _ when backendActionOptions.ContentType = RequestOptions.defaults.ContentType -> ()
+        | _ when backendActionOptions.ContentType = RequestOptions.Defaults.ContentType -> ()
         | Json -> jsonObject.Add("contentType", "json")
         | Form formSelector ->
             jsonObject.Add("contentType", "form")
@@ -103,7 +103,7 @@ type RequestOptions =
             | ValueNone -> ()
             | ValueSome formSelector' -> jsonObject.Add("selector", formSelector')
 
-        if backendActionOptions.IncludeLocal <> RequestOptions.defaults.IncludeLocal then
+        if backendActionOptions.IncludeLocal <> RequestOptions.Defaults.IncludeLocal then
             jsonObject.Add("includeLocal", backendActionOptions.IncludeLocal.ToString().ToLower())
 
         if backendActionOptions.Headers.Length > 0 then
@@ -111,19 +111,19 @@ type RequestOptions =
             backendActionOptions.Headers |> List.iter headerObject.Add
             jsonObject.Add("headers", headerObject)
 
-        if backendActionOptions.OpenWhenHidden <> RequestOptions.defaults.OpenWhenHidden then
+        if backendActionOptions.OpenWhenHidden <> RequestOptions.Defaults.OpenWhenHidden then
             jsonObject.Add("openWhenHidden", backendActionOptions.OpenWhenHidden.ToString().ToLower())
 
-        if backendActionOptions.RetryInterval <> RequestOptions.defaults.RetryInterval then
-            jsonObject.Add("retryInterval", backendActionOptions.RetryInterval.Milliseconds)
+        if backendActionOptions.RetryInterval <> RequestOptions.Defaults.RetryInterval then
+            jsonObject.Add("retryInterval", backendActionOptions.RetryInterval.TotalMilliseconds)
 
-        if backendActionOptions.RetryScaler <> RequestOptions.defaults.RetryScaler then
+        if backendActionOptions.RetryScaler <> RequestOptions.Defaults.RetryScaler then
             jsonObject.Add("retryScaler", backendActionOptions.RetryScaler)
 
-        if backendActionOptions.RetryMaxWait <> RequestOptions.defaults.RetryMaxWait then
-            jsonObject.Add("retryMaxWaitMs", backendActionOptions.RetryMaxWait.Milliseconds)
+        if backendActionOptions.RetryMaxWait <> RequestOptions.Defaults.RetryMaxWait then
+            jsonObject.Add("retryMaxWaitMs", backendActionOptions.RetryMaxWait.TotalMilliseconds)
 
-        if backendActionOptions.RetryMaxCount <> RequestOptions.defaults.RetryMaxCount then
+        if backendActionOptions.RetryMaxCount <> RequestOptions.Defaults.RetryMaxCount then
             jsonObject.Add("retryMaxCount", backendActionOptions.RetryMaxCount)
 
         if backendActionOptions.Abort <> null then
@@ -133,42 +133,45 @@ type RequestOptions =
         options.WriteIndented <- false
         HttpUtility.HtmlEncode(jsonObject.ToJsonString(options))
 
-type Debounce private (timeSpan:TimeSpan, leading:bool, noTrail:bool) =
-    member _.serialize =
-        seq {
-            $"debounce.{timeSpan.Milliseconds}ms"
-            if leading then "leading"
-            if noTrail then "notrail"
-        } |> String.concat "."
+[<Sealed>]
+type Debounce(timeSpan:TimeSpan, leading:bool, noTrail:bool) =
+    member private _.timeSpan = timeSpan
+    member private _.leading = leading
+    member private _.noTrail = noTrail
+    static member Serialize (debounce:Debounce) =
+        let leading' = debounce.leading |> Bool.eitherOr ".leading" ""
+        let noTrail' = debounce.noTrail |> Bool.eitherOr ".notrail" ""
+        debounce.timeSpan = TimeSpan.Zero |> Bool.eitherOr "" $"debounce.{debounce.timeSpan.TotalMilliseconds}ms{leading'}{noTrail'}"
+    static member SerializeOption (debounceOpt:Debounce option) =
+        match debounceOpt with
+        | None -> None
+        | Some debounce when debounce.timeSpan = TimeSpan.Zero -> None
+        | Some debounce -> Some (Debounce.Serialize debounce)
     static member With (timeSpan:TimeSpan, ?leading:bool, ?noTrail:bool) =
         let leading = defaultArg leading false
         let noTrail = defaultArg noTrail false
-        OnEventModifier.Debounce (Debounce (timeSpan, leading, noTrail))
+        Debounce(timeSpan, leading, noTrail)
 
-and Throttle private (timeSpan:TimeSpan, noLeading:bool, trail:bool) =
-    member _.serialize =
-        seq {
-            $"throttle.{timeSpan.Milliseconds}ms"
-            if noLeading then "noleading"
-            if trail then "trail"
-        } |> String.concat "."
+[<Sealed>]
+type Throttle(timeSpan:TimeSpan, noLeading:bool, trail:bool) =
+    member private _.timeSpan = timeSpan
+    member private _.noLeading = noLeading
+    member private _.trail = trail
+    static member Serialize (throttle:Throttle) =
+        let noLeading' = throttle.noLeading |> Bool.eitherOr ".noleading" ""
+        let trail' = throttle.trail |> Bool.eitherOr ".trail" ""
+        throttle.timeSpan = TimeSpan.Zero |> Bool.eitherOr "" $"throttle.{throttle.timeSpan.TotalMilliseconds}ms{noLeading'}{trail'}"
+    static member SerializeOption (throttleOpt:Throttle option) =
+        match throttleOpt with
+        | None -> None
+        | Some throttle when throttle.timeSpan = TimeSpan.Zero -> None
+        | Some throttle -> Some (Throttle.Serialize throttle)
     static member With (timeSpan:TimeSpan, ?noLeading:bool, ?trail:bool) =
-        let noLeading = defaultArg noLeading false
-        let trail = defaultArg trail false
-        OnEventModifier.Throttle (Throttle (timeSpan, noLeading, trail))
+        let leading = defaultArg noLeading false
+        let noTrail = defaultArg trail false
+        Throttle(timeSpan, leading, noTrail)
 
-and Duration private (timeSpan:TimeSpan, leading:bool) =
-    member _.serialize =
-        seq {
-            $"duration.{timeSpan.Milliseconds}ms"
-            if leading then "leading"
-        } |> String.concat "."
-    static member With (timeSpan, ?leading) =
-        let leading = defaultArg leading false
-        OnEventModifier.Duration (Duration (timeSpan, leading))
-    static member Default = Duration.With(TimeSpan.FromSeconds 1)
-
-and OnEventModifier =
+type OnEventModifier =
     /// <summary>
     /// Trigger event once. Can only be used with the built-in events (https://data-star.dev/reference/attribute_plugins#special-events).
     /// </summary>
@@ -182,10 +185,6 @@ and OnEventModifier =
     /// </summary>
     | Capture
     /// <summary>
-    /// Delay the event listener before firing.
-    /// </summary>
-    | Delay of TimeSpan
-    /// <summary>
     /// Debounce the event listener; new events after an initial event, within a TimeSpan, are ignored.
     /// </summary>
     | Debounce of Debounce
@@ -193,10 +192,6 @@ and OnEventModifier =
     /// Throttle the event listener; only fires the last event within a TimeSpan.
     /// </summary>
     | Throttle of Throttle
-    /// <summary>
-    /// Sets the interval duration for `data-on-interval`
-    /// </summary>
-    | Duration of Duration
     /// <summary>
     /// Wraps the expression in `document.startViewTransition()` when the View Transition API is available.
     /// </summary>
@@ -218,15 +213,13 @@ and OnEventModifier =
     /// </summary>
     | Stop
     with
-    static member internal serialize eventModifiers =
-        match eventModifiers with
+    static member internal Serialize eventModifier =
+        match eventModifier with
         | Once -> "once"
         | Passive -> "passive"
         | Capture -> "capture"
-        | Delay timeSpan -> $"delay.{timeSpan.Milliseconds}ms"
-        | Debounce debounce -> debounce.serialize
-        | Throttle throttle -> throttle.serialize
-        | Duration duration -> duration.serialize
+        | Debounce debounce -> (Debounce.Serialize debounce)
+        | Throttle throttle -> (Throttle.Serialize throttle)
         | ViewTransition -> "viewtransition"
         | Window -> "window"
         | Outside -> "outside"
@@ -236,47 +229,17 @@ and OnEventModifier =
 /// <summary>
 /// https://data-star.dev/reference/attribute_plugins#data-on
 /// </summary>
-type OnEvent =
-    /// <summary>
-    /// Triggered when the element is clicked
-    /// </summary>
-    | Click
-    /// <summary>
-    /// Triggered when the page loads
-    /// </summary>
-    | Load
-    /// <summary>
-    /// Triggered every 1 second; can be modified with Duration.With(TimeSpan.FromSeconds _)
-    /// </summary>
-    | Interval
-    /// <summary>
-    /// Triggered on every requestAnimationFrame event. https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame
-    /// </summary>
-    | RequestAnimationFrame
-    /// <summary>
-    /// Triggered when any signal changes
-    /// </summary>
-    | SignalsChanged
-    /// <summary>
-    /// Triggered when a specific signal changes
-    /// </summary>
-    | SignalChanged of signalPath:SignalPath
-    /// <summary>
-    /// A custom event; https://developer.mozilla.org/en-US/docs/Web/Events
-    /// </summary>
-    | Other of string
-    with
-    static member private removeOn str = Regex.Replace(str, "^on-?", "")
-
-    static member internal serialize event =
-        match event with
-        | Click -> $"{Consts.dataSlugPrefix}-on-click"
-        | Load -> $"{Consts.dataSlugPrefix}-on-load"
-        | Interval -> $"{Consts.dataSlugPrefix}-on-interval"
-        | RequestAnimationFrame -> $"{Consts.dataSlugPrefix}-on-raf"
-        | SignalsChanged -> $"{Consts.dataSlugPrefix}-on-signals-change"
-        | SignalChanged signalPath -> $"{Consts.dataSlugPrefix}-on-signals-change-{signalPath |> SignalPath.value |> _.ToKebab()}"
-        | Other event -> $"{Consts.dataSlugPrefix}-on-{event |> _.ToKebab() |> OnEvent.removeOn}"
-
-    static member internal serializeWithModifiers (eventModifiers:OnEventModifier list) (event:OnEvent) =
-        (OnEvent.serialize event) + (Utility.slugifyModifiers OnEventModifier.serialize "__" eventModifiers)
+type internal OnEvent =
+    static member private removeOnRegex = Regex("(^on-?|^data-on-?)", RegexOptions.Compiled)
+    static member private removeOn str =
+        match str with
+        | "online" -> "online"
+        | str -> OnEvent.removeOnRegex.Replace(str, "")
+    static member internal Serialize (event:string, eventModifiers:OnEventModifier list) =
+        let event' = (event, "") |> OnEvent.removeOnRegex.Replace
+        let eventModifiers' =
+            eventModifiers
+            |> List.map OnEventModifier.Serialize
+            |> List.filter (String.IsNullOrWhiteSpace >> not)
+            |> String.concat "__"
+        $"data-on-{event'}{eventModifiers'}"
