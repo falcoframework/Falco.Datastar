@@ -1,7 +1,7 @@
 # Falco.Datastar
 
-[![NuGet Version](https://img.shields.io/nuget/v/Falco.Htmx.svg)](https://www.nuget.org/packages/Falco.Datastar)
-[![build](https://github.com/SpiralOSS/Falco.Datastar/actions/workflows/build.yml/badge.svg)](https://github.com/SpiralOSS/Falco.Datastar/actions/workflows/build.yml)
+[![NuGet Version](https://img.shields.io/nuget/v/Falco.Datastar.svg)](https://www.nuget.org/packages/Falco.Datastar)
+[![build](https://github.com/falcoframework/Falco.Datastar/actions/workflows/build.yml/badge.svg)](https://github.com/falcoframework/Falco.Datastar/actions/workflows/build.yml)
 
 ```fsharp
 open Falco.Markup

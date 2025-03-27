@@ -168,7 +168,7 @@ and Duration private (timeSpan:TimeSpan, leading:bool) =
     static member With (timeSpan, ?leading) =
         let leading = defaultArg leading false
         OnEventModifier.Duration (Duration (timeSpan, leading))
-    static member Default = Duration.With(TimeSpan.FromSeconds 1)
+    static member Default = Duration.With(TimeSpan.FromSeconds 1.0)
 
 and OnEventModifier =
     /// <summary>

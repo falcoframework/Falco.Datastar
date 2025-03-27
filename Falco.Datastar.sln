@@ -22,6 +22,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{3458D5A7
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Falco.Datastar.Tests", "test\Falco.Datastar.Tests\Falco.Datastar.Tests.fsproj", "{772A0FC5-A796-4408-9751-53842F8B8C77}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GitHub", "GitHub", "{8CDC461C-AAC6-49CA-8BDB-81AD69A0934D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{A8B7EA1A-4A30-4C97-B056-E88429912A12}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\sdk-dotnet-nuget.yml = .github\workflows\sdk-dotnet-nuget.yml
+		.github\workflows\build.yml = .github\workflows\build.yml
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,6 +44,7 @@ Global
 		{0187E584-68DF-4D8C-874C-FF8E061932DF} = {305B55B6-83D0-453C-A77E-080214FA0657}
 		{AECB950B-20DD-40C4-9ACA-3A8FF1CFBC05} = {305B55B6-83D0-453C-A77E-080214FA0657}
 		{772A0FC5-A796-4408-9751-53842F8B8C77} = {3458D5A7-460B-48A9-8B95-A3FF52D58E8E}
+		{A8B7EA1A-4A30-4C97-B056-E88429912A12} = {8CDC461C-AAC6-49CA-8BDB-81AD69A0934D}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{6BCE09E2-DA8E-44F9-B5EC-C4F76E329471}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
