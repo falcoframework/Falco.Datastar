@@ -22,10 +22,10 @@ $srcDir = Join-Path -Path $rootDir -ChildPath 'src'
 $testDir = Join-Path -Path $rootDir -ChildPath 'test'
 
 switch ($Action) {
-    "Test"  { $projectdir = Join-Path -Path $testDir -ChildPath 'Falco.Htmx.Tests' }
-    "Pack"  { $projectDir = Join-Path -Path $srcDir -ChildPath 'Falco.Htmx' }
+    "Test"  { $projectdir = Join-Path -Path $testDir -ChildPath 'Falco.Datastar.Tests' }
+    "Pack"  { $projectDir = Join-Path -Path $srcDir -ChildPath 'Falco.Datastar' }
     "Sln"   { $projectDir = $rootDir }
-    Default { $projectDir = Join-Path -Path $srcDir -ChildPath 'Falco.Htmx' }
+    Default { $projectDir = Join-Path -Path $srcDir -ChildPath 'Falco.Datastar' }
 }
 
 if (!$SkipClean.IsPresent)
