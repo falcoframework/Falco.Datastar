@@ -37,7 +37,7 @@
   <ItemGroup>
     <PackageReference Include="Falco" Version="5.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
-    <PackageReference Include="StarFederation.Datastar" Version="1.0.0-beta.4" />
+    <PackageReference Include="StarFederation.Datastar" Version="1.0.0-beta.5" />
   </ItemGroup>
 
   <ItemGroup>
