@@ -454,7 +454,7 @@ type Ds =
         expressions |> String.concat " ; "
 
     /// <summary>
-    /// An attribute that should be placed in the &lt;body&gt; when creating a streaming app to avoid the issue explained here:
+    /// An attribute that should be added to the &lt;body&gt; when creating a streaming app to avoid the issue explained here:
     /// https://stackoverflow.com/questions/8788802/prevent-safari-loading-from-cache-when-back-button-is-clicked
     /// </summary>
     static member safariStreamingFix = Attr.create "data-on-pageshow.window" "evt?.persisted && window.location.reload()"

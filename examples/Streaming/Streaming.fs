@@ -40,11 +40,15 @@ let handleIndex ctx = task {
 
                 Text.h1 "Example: Streaming"
 
-                Elem.input [ Attr.id "streamDisplayBadApple"; Attr.typeRadio; Attr.value Consts.displaySignalValueBadApple
+                Elem.input [ Attr.id "streamDisplayBadApple"
+                             Attr.typeRadio
+                             Attr.value Consts.displaySignalValueBadApple
                              Ds.bind Consts.displaySignalName ]
                 Elem.label [ Attr.for' "streamDisplayBadApple" ] [ Text.raw "Bad Apple" ]
 
-                Elem.input [ Attr.id "streamDisplayGuids"; Attr.typeRadio; Attr.value Consts.displaySignalValueUsers
+                Elem.input [ Attr.id "streamDisplayGuids"
+                             Attr.typeRadio
+                             Attr.value Consts.displaySignalValueUsers
                              Ds.bind Consts.displaySignalName ]
                 Elem.label [ Attr.for' "streamDisplayGuids" ] [ Text.raw "Viewers" ]
 
@@ -73,6 +77,7 @@ let handleStream : HttpHandler = (fun ctx -> task {
     let user = user |> ValueOption.get
 
     do! handleViewChange ctx
+    do! Response.sseMergeSignal (sseHandler, Consts.displaySignalName, Consts.displaySignalValueBadApple)
 
     try
         try
