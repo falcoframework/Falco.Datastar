@@ -11,7 +11,7 @@ open Microsoft.AspNetCore.Http
 open StarFederation.Datastar
 open StarFederation.Datastar.Scripts.BrowserConsoleAction
 
-[<RequireQualifiedAccess>]
+[<AbstractClass; Sealed; RequireQualifiedAccess>]
 type Response =
 
     /// <summary>
@@ -33,7 +33,7 @@ type Response =
     /// <param name="fragments">Fragments to send</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member sseHtmlFragments (sseHandler, fragments, ?sseOptions) =
-        ServerSentEventGenerator.mergeFragments (sseHandler, (renderHtml fragments), ?options=sseOptions)
+        ServerSentEventGenerator.MergeFragments (sseHandler, (renderHtml fragments), ?options=sseOptions)
 
     /// <summary>
     /// Sends an HTML fragments ServerSideEvent
@@ -42,7 +42,7 @@ type Response =
     /// <param name="fragments">Fragments to send</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member sseHtmlStringFragments (sseHandler, fragments, ?sseOptions) =
-        ServerSentEventGenerator.mergeFragments (sseHandler, fragments, ?options=sseOptions)
+        ServerSentEventGenerator.MergeFragments (sseHandler, fragments, ?options=sseOptions)
 
     /// <summary>
     /// Sends signals to be merged with signals on the client
@@ -51,7 +51,7 @@ type Response =
     /// <param name="signals">Signals to merge</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member sseMergeSignals (sseHandler, signals, ?sseOptions) =
-        ServerSentEventGenerator.mergeSignals (sseHandler, signals, ?options=sseOptions)
+        ServerSentEventGenerator.MergeSignals (sseHandler, signals, ?options=sseOptions)
 
     /// <summary>
     /// Sends signals to be merged with signals on the client
@@ -62,7 +62,7 @@ type Response =
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member sseMergeSignal<'T> (sseHandler, signalPath:SignalPath, signalValue:'T, ?sseOptions) =
         let signalUpdate = (signalPath, signalValue) ||> SignalPath.createJsonNodePathToValue |> _.ToJsonString()
-        ServerSentEventGenerator.mergeSignals (sseHandler, signalUpdate, ?options=sseOptions)
+        ServerSentEventGenerator.MergeSignals (sseHandler, signalUpdate, ?options=sseOptions)
 
     /// <summary>
     /// Sends signals to be merged with signals on the client
@@ -74,7 +74,7 @@ type Response =
     static member sseMergeSignals<'T> (sseHandler, signals:'T, ?sseOptions, ?jsonSerializerOptions) =
         let jsonSerializerOptions = defaultArg jsonSerializerOptions JsonSerializerOptions.Default
         let signals = JsonSerializer.Serialize(signals, jsonSerializerOptions)
-        ServerSentEventGenerator.mergeSignals (sseHandler, signals, ?options=sseOptions)
+        ServerSentEventGenerator.MergeSignals (sseHandler, signals, ?options=sseOptions)
 
     /// <summary>
     /// Remove an HTML fragment from the client
@@ -83,7 +83,7 @@ type Response =
     /// <param name="selector">The selector to remove on the client DOM</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member sseRemoveFragments (sseHandler, selector, ?sseOptions) =
-        ServerSentEventGenerator.removeFragments (sseHandler, selector, ?options=sseOptions)
+        ServerSentEventGenerator.RemoveFragments (sseHandler, selector, ?options=sseOptions)
 
     /// <summary>
     /// Remove signals from client
@@ -92,7 +92,7 @@ type Response =
     /// <param name="signalPaths">The paths to the signals that should be removed from the signals on the client</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member sseRemoveSignals (sseHandler, signalPaths, ?sseOptions) =
-        ServerSentEventGenerator.removeSignals (sseHandler, signalPaths, ?options=sseOptions)
+        ServerSentEventGenerator.RemoveSignals (sseHandler, signalPaths, ?options=sseOptions)
 
     /// <summary>
     /// Execute a Javascript on the client
@@ -101,7 +101,7 @@ type Response =
     /// <param name="script">Javascript to run on the client</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member sseExecuteScript (sseHandler, script, ?sseOptions) =
-        ServerSentEventGenerator.executeScript (sseHandler, script, ?options=sseOptions)
+        ServerSentEventGenerator.ExecuteScript (sseHandler, script, ?options=sseOptions)
 
     //////////////////////////////////////////////////////////////////
     // OF RESPONSES
@@ -112,7 +112,7 @@ type Response =
     /// <param name="fragments">Fragments to send</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member ofHtmlFragments (fragments, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.mergeFragments ((Response.startServerSentEventStream ctx), (renderHtml fragments), ?options=sseOptions)
+        ServerSentEventGenerator.MergeFragments ((Response.startServerSentEventStream ctx), (renderHtml fragments), ?options=sseOptions)
         )
 
     /// <summary>
@@ -121,7 +121,7 @@ type Response =
     /// <param name="fragments">Fragments to send</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member ofHtmlStringFragments (fragments, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.mergeFragments ((Response.startServerSentEventStream ctx), fragments, ?options=sseOptions)
+        ServerSentEventGenerator.MergeFragments ((Response.startServerSentEventStream ctx), fragments, ?options=sseOptions)
         )
 
     /// <summary>
@@ -130,7 +130,7 @@ type Response =
     /// <param name="signals">Signals to merge</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member ofMergeSignals (signals, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.mergeSignals ((Response.startServerSentEventStream ctx), signals, ?options=sseOptions)
+        ServerSentEventGenerator.MergeSignals ((Response.startServerSentEventStream ctx), signals, ?options=sseOptions)
         )
 
     /// <summary>
@@ -142,7 +142,7 @@ type Response =
     static member ofMergeSignals<'T> (signals:'T, ?sseOptions, ?jsonSerializerOptions) : HttpHandler = (fun ctx ->
         let jsonSerializerOptions = defaultArg jsonSerializerOptions JsonSerializerOptions.Default
         let signals = JsonSerializer.Serialize(signals, jsonSerializerOptions)
-        ServerSentEventGenerator.mergeSignals ((Response.startServerSentEventStream ctx), signals, ?options=sseOptions)
+        ServerSentEventGenerator.MergeSignals ((Response.startServerSentEventStream ctx), signals, ?options=sseOptions)
         )
 
     /// <summary>
@@ -153,7 +153,7 @@ type Response =
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member ofMergeSignal<'T> (signalPath, signalValue:'T, ?sseOptions) : HttpHandler = (fun ctx ->
         let signalUpdate = (signalPath, signalValue) ||> SignalPath.createJsonNodePathToValue |> _.ToJsonString()
-        ServerSentEventGenerator.mergeSignals ((Response.startServerSentEventStream ctx), signalUpdate, ?options=sseOptions)
+        ServerSentEventGenerator.MergeSignals ((Response.startServerSentEventStream ctx), signalUpdate, ?options=sseOptions)
         )
 
     /// <summary>
@@ -162,7 +162,7 @@ type Response =
     /// <param name="selector">The selector to remove on the client DOM</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member ofRemoveFragments (selector, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.removeFragments ((Response.startServerSentEventStream ctx), selector, ?options=sseOptions)
+        ServerSentEventGenerator.RemoveFragments ((Response.startServerSentEventStream ctx), selector, ?options=sseOptions)
         )
 
     /// <summary>
@@ -171,7 +171,7 @@ type Response =
     /// <param name="signalPaths">The paths to the signals that should be removed from the signals on the client</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member ofRemoveSignals (signalPaths, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.removeSignals ((Response.startServerSentEventStream ctx), signalPaths, ?options=sseOptions)
+        ServerSentEventGenerator.RemoveSignals ((Response.startServerSentEventStream ctx), signalPaths, ?options=sseOptions)
         )
 
     /// <summary>
@@ -180,5 +180,5 @@ type Response =
     /// <param name="script">Javascript to run on the client</param>
     /// <param name="sseOptions">ServerSentEvent Options</param>
     static member ofExecuteScript (script, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.executeScript ((Response.startServerSentEventStream ctx), script, ?options=sseOptions)
+        ServerSentEventGenerator.ExecuteScript ((Response.startServerSentEventStream ctx), script, ?options=sseOptions)
         )

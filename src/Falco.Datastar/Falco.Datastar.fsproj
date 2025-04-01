@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>Falco.Datastar</AssemblyName>
-    <Version>1.0.0-beta.1</Version>
+    <Version>1.0.0-beta.2</Version>
 
     <!-- General info -->
     <Description>Datastar Bindings for the Falco web toolkit.</Description>
@@ -37,23 +37,25 @@
   <ItemGroup>
     <PackageReference Include="Falco" Version="5.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
-    <PackageReference Include="StarFederation.Datastar" Version="1.0.0-beta.4" />
+    <PackageReference Include="StarFederation.Datastar" Version="1.0.0-beta.5" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\assets\icon.png">
+      <Pack>true</Pack>
+      <PackagePath></PackagePath>
+      <Link>icon.png</Link>
+    </None>
+    <None Include="..\..\README.md">
+      <Pack>true</Pack>
+      <PackagePath>/</PackagePath>
+      <Link>README.md</Link>
+    </None>
     <Compile Include="Utility.fs" />
     <Compile Include="Types.fs" />
     <Compile Include="Ds.fs" />
     <Compile Include="Request.fs" />
     <Compile Include="Response.fs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="../../assets/icon.png">
-      <Pack>true</Pack>
-      <PackagePath>$(PackageIconUrl)</PackagePath>
-    </None>
-    <None Include="../../README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
 </Project>

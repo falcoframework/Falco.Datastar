@@ -19,22 +19,15 @@ module internal String =
             )
         |> _.Replace("-", "", 0, 1).ToString()
 
-[<Extension>]
 type StringExt() =
     [<Extension>]
     static member ToKebab (string:string) = string |> String.toKebab
 
 module internal Bool =
-    /// <summary>
-    /// If bool is true -> return trueString; otherwise falseString
-    /// </summary>
-    /// <param name="trueString">String to return if boolOption = Some true</param>
-    /// <param name="falseString">String to return if boolOption &lt;&gt; Some true</param>
-    /// <param name="bool">bool to evaluate</param>
-    let boolToString trueString falseString bool =
+    let inline eitherOr trueThing falseThing bool =
         match bool with
-        | true -> trueString
-        | _ -> falseString
+        | true -> trueThing
+        | _ -> falseThing
 
 module internal Utility =
 
