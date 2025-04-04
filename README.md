@@ -70,7 +70,7 @@ merge an HTML fragment from a GET request.
 let handleIndex : HttpHandler =
     let html =
         Elem.html [] [
-            Elem.head [] [ Ds.script ]
+            Elem.head [] [ Ds.cdnScript ]
             Elem.body [] [
                 Text.h1 "Example: Hello World"
                 Elem.button
