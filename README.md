@@ -138,8 +138,8 @@ and will merge the signals with the existing signals.
 
 ```fsharp
 type MySignals() =
-    member var firstName = "Don" with get, set
-    member var lastName = "Syme" with get, set
+    member val firstName = "Don" with get, set
+    member val lastName = "Syme" with get, set
 
 let signals = MySignals()
 
