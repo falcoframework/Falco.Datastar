@@ -159,7 +159,7 @@ Elem.div [ Ds.signal (sp"signalPath", "signalValue", ifMissing = true) ] []
 Creates a read-only signal that is computed based on a [Datastar expression](https://data-star.dev/guide/datastar_expressions). [`data-text`](#dstext--data-text) is used here to bind and display the signal value.
 
 ```fsharp
-Elem.div [ Ds.computed "foo" "$bar + $baz" ] []
+Elem.div [ Ds.computed ("foo", "$bar + $baz") ] []
 Elem.div [ Ds.text "$foo" ] []
 ```
 
