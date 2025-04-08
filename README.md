@@ -182,7 +182,7 @@ As an example, the signal can be used to show a loading indicator.
 Elem.button [
     Ds.onClick (Ds.get "/fetchBigData")  // make a request to the backend
     Ds.indicator "fetching"  // the signal we are creating
-    Ds.attr' "disabled" "$fetching"  // assigns the "disabled" attribute if the `fetching` signal value is true
+    Ds.attr' ("disabled", "$fetching")  // assigns the "disabled" attribute if the `fetching` signal value is true
     ] [ Text.raw "Fetch!" ]
 
 Elem.div
@@ -223,7 +223,7 @@ Elem.div [ Ds.text "$foo" ] []
 Binds the value of an HTML attribute to an expression.
 
 ```fsharp
-Elem.div [ Ds.attr' "title" "$foo" ] []
+Elem.div [ Ds.attr' ("title", "$foo") ] []
 ```
 
 ### [Ds.show : `data-show`](https://data-star.dev/reference/attribute_plugins#data-show)
