@@ -180,7 +180,7 @@ As an example, the signal can be used to show a loading indicator.
 
 ```fsharp
 Elem.button [
-    Ds.onClick (Ds.get "/fetchBigData")  // make a request to the backend
+    Ds.onClick (Ds.get "/fetchBigData")  // make a request to the backend, making fetch happen
     Ds.indicator "fetching"  // the signal we are creating
     Ds.attr' ("disabled", "$fetching")  // assigns the "disabled" attribute if the `fetching` signal value is true
     ] [ Text.raw "Fetch!" ]
