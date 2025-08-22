@@ -70,7 +70,7 @@ merge an HTML fragment from a GET request.
 let handleIndex : HttpHandler =
     let html =
         Elem.html [] [
-            Elem.head [] [ Ds.script ]
+            Elem.head [] [ Ds.cdnScript ]
             Elem.body [] [
                 Text.h1 "Example: Hello World"
                 Elem.button
@@ -138,8 +138,8 @@ and will merge the signals with the existing signals.
 
 ```fsharp
 type MySignals() =
-    member var firstName = "Don" with get, set
-    member var lastName = "Syme" with get, set
+    member val firstName = "Don" with get, set
+    member val lastName = "Syme" with get, set
 
 let signals = MySignals()
 
@@ -159,7 +159,7 @@ Elem.div [ Ds.signal (sp"signalPath", "signalValue", ifMissing = true) ] []
 Creates a read-only signal that is computed based on a [Datastar expression](https://data-star.dev/guide/datastar_expressions). [`data-text`](#dstext--data-text) is used here to bind and display the signal value.
 
 ```fsharp
-Elem.div [ Ds.computed "foo" "$bar + $baz" ] []
+Elem.div [ Ds.computed ("foo", "$bar + $baz") ] []
 Elem.div [ Ds.text "$foo" ] []
 ```
 
@@ -180,9 +180,9 @@ As an example, the signal can be used to show a loading indicator.
 
 ```fsharp
 Elem.button [
-    Ds.onClick (Ds.get "/fetchBigData")  // make a request to the backend
+    Ds.onClick (Ds.get "/fetchBigData")  // make a request to the backend, making fetch happen
     Ds.indicator "fetching"  // the signal we are creating
-    Ds.attr' "disabled" "$fetching"  // assigns the "disabled" attribute if the `fetching` signal value is true
+    Ds.attr' ("disabled", "$fetching")  // assigns the "disabled" attribute if the `fetching` signal value is true
     ] [ Text.raw "Fetch!" ]
 
 Elem.div
@@ -223,7 +223,7 @@ Elem.div [ Ds.text "$foo" ] []
 Binds the value of an HTML attribute to an expression.
 
 ```fsharp
-Elem.div [ Ds.attr' "title" "$foo" ] []
+Elem.div [ Ds.attr' ("title", "$foo") ] []
 ```
 
 ### [Ds.show : `data-show`](https://data-star.dev/reference/attribute_plugins#data-show)
