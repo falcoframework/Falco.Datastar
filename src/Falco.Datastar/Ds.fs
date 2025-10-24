@@ -10,7 +10,7 @@ open StarFederation.Datastar.FSharp
 [<AbstractClass; Sealed; RequireQualifiedAccess>]
 type Ds =
     static member cdnSrc =
-        @"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.5/bundles/datastar.js"
+        @"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"
 
     /// <summary>
     /// Shorthand for `Elem.script [ Attr.type' "module"; Attr.src cdnSrc ] []`
@@ -120,7 +120,7 @@ type Ds =
 
     /// <summary>
     /// Create a signal that refers to the HTML element it is assigned to; after a data-ref is created, you can access attributes of the element.
-    /// e.g. data-on-click="$signalRefName.value='newValue'".
+    /// e.g. data-on:click="$signalRefName.value='newValue'".
     /// Note: that if an element's attribute changes, the expressions containing this signal will not fire.
     /// https://data-star.dev/reference/attributes#data-ref
     /// </summary>
@@ -253,14 +253,14 @@ type Ds =
 
     /// <summary>
     /// Fires the expression when the element is loaded.
-    /// https://data-star.dev/reference/attributes#data-on-load
+    /// https://data-star.dev/reference/attributes#data-init
     /// </summary>
     /// <param name="expression">The expression to evaluate when the event is triggered; https://data-star.dev/guide/datastar_expressions</param>
     /// <param name="delayMs">The time to wait before executing the expression in milliseconds; default = 0</param>
     /// <param name="viewTransition">Wrap expression in document.startViewTransition(); default = false</param>
     /// <returns>Attribute</returns>
-    static member onLoad (expression, ?delayMs, ?viewTransition) =
-        DsAttr.start "on-load"
+    static member onInit (expression, ?delayMs, ?viewTransition) =
+        DsAttr.start "init"
         |> DsAttr.addModifierOption (delayMs |> Option.map DsAttrModifier.DelayMs)
         |> DsAttr.addModifierNameIf "viewtransition" (defaultArg viewTransition false)
         |> DsAttr.addValue expression
@@ -437,4 +437,4 @@ type Ds =
     /// https://stackoverflow.com/questions/8788802/prevent-safari-loading-from-cache-when-back-button-is-clicked
     /// </summary>
     static member safariStreamingFix =
-        Attr.create "data-on-pageshow.window" "evt?.persisted && window.location.reload()"
+        Attr.create "data-on:pageshow.window" "evt?.persisted && window.location.reload()"

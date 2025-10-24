@@ -45,7 +45,7 @@ let handleIndex ctx = task {
                 Ds.onSignalPatch (Ds.get "/channel")
                 Ds.safariStreamingFix
             ] [
-                Elem.div [ Ds.onLoad (Ds.get "/stream") ] []
+                Elem.div [ Ds.onInit (Ds.get "/stream") ] []
 
                 Text.h1 "Example: Streaming"
 

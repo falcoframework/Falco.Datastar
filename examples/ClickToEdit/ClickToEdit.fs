@@ -16,7 +16,7 @@ let ofMainBody : HttpHandler =
             ]
             Elem.body [] [
                 Text.h1 "Example: Click to Edit"
-                Elem.div [ Attr.id "contact"; Ds.onLoad (Ds.get "clickToEdit/view") ] []
+                Elem.div [ Attr.id "contact"; Ds.onInit (Ds.get "clickToEdit/view") ] []
             ]
         ]
     Response.ofHtml htmlXml

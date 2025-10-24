@@ -139,10 +139,10 @@ Some important notes: Signals defined later in the DOM tree override those defin
 - [data-ignore](#dsignore-dsignorethis-dsignoremorph--data-star-ignore)
 - [data-indicator](#dsindicator--data-indicator)
 - [data-json-signals](#dssignals--dssignal--data-signals)
+- [data-init](#dsinit--data-init)
 - [data-on](#dsonevent--data-on)
 - [data-on-intersect](#dsonintersect--data-on-intersect)
 - [data-on-interval](#dsoninterval--data-on-interval)
-- [data-on-load](#dsonload--data-on-load)
 - [data-on-signal-patch](#dsonsignalpatch--dsonsignalpatchfilter--data-on-signal-patch)
 - [data-on-signal-patch-filter](#dsonsignalpatch--dsonsignalpatchfilter--data-on-signal-patch)
 - [data-ref](#dsref--data-ref)
@@ -285,6 +285,16 @@ Elem.div [ Ds.style "display" "$hiding && 'none'" ] [ Text.raw "Might be hiding"
 Events and triggers result in [Datastar expressions](https://data-star.dev/guide/datastar_expressions) being executed. This can result in signal changes and other expressions being run.
 Example: clicking a button to send a request or an element scrolling into view.
 
+### [Ds.init : `data-init`](https://data-star.dev/reference/attributes#data-init)
+
+Runs an expression when the element is loaded into the DOM. **Important:** when patching elements,
+`ElementPatchMode.Replace` the [Datastar expression](https://data-star.dev/guide/datastar_expressions)
+will be fired a second time, but will not with `ElementPatchMode.Outer`.
+
+```fsharp
+Elem.div [ Ds.init (Ds.get "/moreAgents") ] []
+```
+
 ### [Ds.onEvent : `data-on`](https://data-star.dev/reference/attributes#data-on)
 
 Attaches an event listener to an element, executing a [Datastar expression](https://data-star.dev/guide/datastar_expressions) whenever the event is triggered.
@@ -297,7 +307,7 @@ Elem.div [ Ds.onEvent("mouseenter", "$show = !$show"); Ds.onEvent("mouseexit", "
 
 ```fsharp
 Elem.button [ Ds.onClick "$show = !$show" ] [ Text.raw "Peek-a-boo!" ]
-Elem.div [ Ds.onLoad (Ds.get "/edit") ] []
+Elem.div [ Ds.init (Ds.get "/edit") ] []
 ```
 
 #### `data-on` Modifiers
@@ -311,8 +321,8 @@ Modifiers allow you to alter the behavior when events are triggered. (Modifiers 
     | Capture  // * - can only be used with built-in events
     | Delay of TimeSpan
     | DelayMs of int  // identical to Delay, but just milliseconds
-    | Debounce of Debounce  // timespan, leading, and notrail
-    | Throttle of Throttle  // timepan, noleading, and trail
+    | Debounce of Debounce  // timespan, leading, and notrailing
+    | Throttle of Throttle  // timepan, noleading, and trailing
     | ViewTransition
     | Window
     | Outside
@@ -329,16 +339,7 @@ Elem.div [
 
 Results in:
 ```html
-<div data-on-click__window__debounce.1000ms.leading="$foo = ''"></div>
-```
-
-### [Ds.onLoad : `data-on-load`](https://data-star.dev/reference/attributes#data-on-load)
-
-Runs an expression when the element is loaded into the DOM. **Important:** when patching elements, `ElementPatchMode.Replace` the [Datastar expression](https://data-star.dev/guide/datastar_expressions)
-will be fired a second time, but will not with `ElementPatchMode.Outer`.
-
-```fsharp
-Elem.div [ Ds.onLoad (Ds.get "/moreAgents") ] []
+<div data-on:click__window__debounce.1000ms.leading="$foo = ''"></div>
 ```
 
 ### [Ds.effect : `data-effect`](https://data-star.dev/reference/attributes#data-effect)
@@ -367,7 +368,7 @@ Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Half, onlyOnce = 
 Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Half, onlyOnce = true, throttle = Throttle.With(TimeSpan.FromSeconds(1.0))) ] []
 ```
 
-### [Ds.onSignalPatch | Ds.onSignalPatchFilter: `data-on-signal-patch`](https://data-star.dev/reference/attributes#data-on-signal-change)
+### [Ds.onSignalPatch | Ds.onSignalPatchFilter: `data-on-signal-patch`](https://data-star.dev/reference/attributes#data-on:signal-change)
 
 Runs an expression any signal changes. This should be used sparingly, as it is cost intensive.
 
@@ -407,7 +408,7 @@ All signals, that do not have an underscore prefix, are sent in the request.
 `@get` will send the signal values as query parameters. All others are sent within a JSON body.
 
 ```fsharp
-Elem.div [ Ds.onLoad (Ds.get "/get") ] []
+Elem.div [ Ds.init (Ds.get "/get") ] []
 
 Elem.button [ Ds.onClick (Ds.post "/post") ] [ Text.raw "Post" ]
 

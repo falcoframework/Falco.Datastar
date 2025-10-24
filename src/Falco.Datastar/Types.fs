@@ -5,7 +5,6 @@ open System.Collections.Generic
 open System.Text
 open System.Text.Json
 open System.Text.Json.Nodes
-open System.Text.RegularExpressions
 open System.Web
 open Falco.Markup
 open StarFederation.Datastar.FSharp
@@ -189,20 +188,20 @@ type RequestOptions =
 type Debounce =
     { TimeSpan:TimeSpan
       Leading:bool
-      NoTrail:bool }
-    static member With (timeSpan:TimeSpan, ?leading:bool, ?noTrail:bool) =
-        { TimeSpan = timeSpan; Leading = (defaultArg leading false); NoTrail = (defaultArg noTrail false) }
-    static member With (milliseconds:int, ?leading:bool, ?noTrail:bool) =
-        { TimeSpan = TimeSpan.FromMilliseconds(milliseconds); Leading = (defaultArg leading false); NoTrail = (defaultArg noTrail false) }
+      NoTrailing:bool }
+    static member inline With (timeSpan:TimeSpan, ?leading:bool, ?noTrailing:bool) =
+        { TimeSpan = timeSpan; Leading = (defaultArg leading false); NoTrailing = (defaultArg noTrailing false) }
+    static member inline With (milliseconds:int, ?leading:bool, ?noTrailing:bool) =
+        { TimeSpan = TimeSpan.FromMilliseconds(milliseconds); Leading = (defaultArg leading false); NoTrailing = (defaultArg noTrailing false) }
 
 type Throttle =
     { TimeSpan:TimeSpan
       NoLeading:bool
-      Trail:bool }
-    static member With (timeSpan:TimeSpan, ?noLeading:bool, ?trail:bool) =
-        { TimeSpan = timeSpan; NoLeading = (defaultArg noLeading false); Trail = (defaultArg trail false) }
-    static member With (milliseconds:int, ?noLeading:bool, ?trail:bool) =
-        { TimeSpan = TimeSpan.FromMilliseconds(milliseconds); NoLeading = (defaultArg noLeading false); Trail = (defaultArg trail false) }
+      Trailing:bool }
+    static member inline With (timeSpan:TimeSpan, ?noLeading:bool, ?trailing:bool) =
+        { TimeSpan = timeSpan; NoLeading = (defaultArg noLeading false); Trailing = (defaultArg trailing false) }
+    static member inline With (milliseconds:int, ?noLeading:bool, ?trailing:bool) =
+        { TimeSpan = TimeSpan.FromMilliseconds(milliseconds); NoLeading = (defaultArg noLeading false); Trailing = (defaultArg trailing false) }
 
 type OnEventModifier =
     /// Trigger event once. Can only be used with the built-in events
@@ -237,36 +236,36 @@ type DsAttrModifier =
     { Name:string
       Tags:string list }
     with
-    static member Delay (delay:TimeSpan) =
+    static member inline Delay (delay:TimeSpan) =
         { Name = "delay"; Tags = [ $"{delay.TotalMilliseconds}ms" ] }
 
-    static member DelayMs (delay:int) =
+    static member inline DelayMs (delay:int) =
         { Name = "delay"; Tags = [ $"{delay}ms" ] }
 
-    static member DurationMs (duration:int, leading:bool) =
+    static member inline DurationMs (duration:int, leading:bool) =
         { Name = "duration"
           Tags = [
               $"{duration}ms"
               if leading then "leading"
           ] }
 
-    static member Throttle (throttle:Throttle) =
+    static member inline Throttle (throttle:Throttle) =
         { Name = "throttle"
           Tags = [
             $"{throttle.TimeSpan.TotalMilliseconds}ms"
             if throttle.NoLeading then "noleading"
-            if throttle.Trail then "trail"
+            if throttle.Trailing then "trailing"
           ] }
 
-    static member Debounce (debounce:Debounce) =
+    static member inline Debounce (debounce:Debounce) =
         { Name = "debounce"
           Tags = [
             $"{debounce.TimeSpan.TotalMilliseconds}ms"
             if debounce.Leading then "leading"
-            if debounce.NoTrail then "notrail"
+            if debounce.NoTrailing then "notrailing"
           ] }
 
-    static member OnEventModifier (onEventModifier:OnEventModifier) =
+    static member inline OnEventModifier (onEventModifier:OnEventModifier) =
         match onEventModifier with
         | Once -> { Name = "once"; Tags = [] }
         | Passive -> { Name = "passive"; Tags = [] }
@@ -291,22 +290,16 @@ type DsAttr =
       HasCaseModifier:bool
       Value:string voption }
     with
-    static member private removeOnRegex = Regex("(^on-?|^data-on-?)", RegexOptions.Compiled)
-
     static member inline start name =
         { Name = name; Target = ValueNone; Modifiers = []; Value = ValueNone; HasCaseModifier = false }
 
-    static member startEvent eventName =
-        let removeOn str =
-            match str with
-            | "online" -> "online"
-            | str -> DsAttr.removeOnRegex.Replace(str, "")
-        { Name = $"on-{(removeOn eventName)}"; Target = ValueNone; Modifiers = []; Value = ValueNone; HasCaseModifier = false }
+    static member inline startEvent eventName =
+        { Name = $"on"; Target = ValueSome eventName; Modifiers = []; Value = ValueNone; HasCaseModifier = false }
 
     static member inline addTarget name dsAttr=
         { dsAttr with Target = ValueSome name }
 
-    static member addSignalPathTarget (signalPath:SignalPath) =
+    static member inline addSignalPathTarget (signalPath:SignalPath) =
         signalPath
         |> SignalPath.keys
         |> Seq.map SignalPath.kebabValue
@@ -339,7 +332,7 @@ type DsAttr =
         |> (fun sb ->
             match dsAttr.Target with
             | ValueNone -> sb
-            | ValueSome target -> sb.Append('-') |> _.Append(target)
+            | ValueSome target -> sb.Append(':') |> _.Append(target)
             )
         |> (fun sb ->
             match dsAttr.Modifiers with
@@ -353,7 +346,7 @@ type DsAttr =
             )
         |> _.ToString()
 
-    static member create dsAttr =
+    static member inline create dsAttr =
         let dsAttrKey = dsAttr |> DsAttr.generateKey
         match dsAttr.Value with
         | ValueSome value -> Attr.create dsAttrKey value
