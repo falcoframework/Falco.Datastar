@@ -1,11 +1,11 @@
 open Falco
+open Falco.Datastar.SignalPath
 open Falco.Routing
 open Falco.Datastar
 open Falco.Markup
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Hosting
-open StarFederation.Datastar.SignalPath
 
 let ofMainBody : HttpHandler =
     let htmlXml =
@@ -38,7 +38,7 @@ module clickToEdit =
                 Elem.button [ Ds.onClick (Ds.get "clickToEdit/edit") ] [ Text.raw "Edit" ]
                 Elem.button [ Ds.onClick (Ds.get "clickToEdit/reset") ] [ Text.raw "Reset" ]
             ]
-        return Response.ofHtmlFragments fragment ctx
+        return Response.ofHtmlElements fragment ctx
         })
 
     let editFragment : HttpHandler = (fun ctx -> task {
@@ -51,10 +51,10 @@ module clickToEdit =
                 Elem.button [ Ds.onClick (Ds.put "clickToEdit/save") ] [ Text.raw "Save" ]
                 Elem.button [ Ds.onClick (Ds.get "clickToEdit/reset") ] [ Text.raw "Reset" ]
             ]
-        return Response.ofHtmlFragments fragment ctx
+        return Response.ofHtmlElements fragment ctx
         })
 
-    let resetSignals : HttpHandler = Response.ofMergeSignals (MySignals())
+    let resetSignals : HttpHandler = Response.ofPatchSignals (MySignals())
 
     let save (ctx:HttpContext) =
         // TODO: get the signals and save to a database

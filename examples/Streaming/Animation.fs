@@ -6,7 +6,7 @@ open System.Text
 open System.Threading.Tasks
 
 // the laziest zstd parser
-let readAnimationFile zstPath =
+let private readAnimationFile zstPath =
     let zstdReader (stream:Stream) = seq {
         use streamReader = new StreamReader(stream, encoding=Encoding.ASCII)
         streamReader.ReadLine() |> ignore  // header metadata
@@ -30,13 +30,13 @@ let readAnimationFile zstPath =
     |> Seq.map (fst >> ValueOption.get)
 
 // the laziest broadcast block with the latest frame of BadApple, plays continuously
-let readBadAppleFrames =
+let private readBadAppleFrames =
     let zstPath = Path.Combine("assets", "badapple.zst")
     readAnimationFile zstPath |> Seq.toArray
 
-let badAppleFrames = readBadAppleFrames
+let private badAppleFrames = readBadAppleFrames
 let mutable currentBadAppleFrame = 0
-let totalBadAppleFrames = badAppleFrames |> Array.length
+let private totalBadAppleFrames = badAppleFrames |> Array.length
 backgroundTask {
     while true do
         currentBadAppleFrame <- (currentBadAppleFrame + 1) % totalBadAppleFrames

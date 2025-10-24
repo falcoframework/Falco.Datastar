@@ -1,17 +1,14 @@
 ﻿open Falco
+open Falco.Datastar.SignalPath
 open Falco.Markup
 open Falco.Routing
 open Falco.Datastar
 open Microsoft.AspNetCore.Builder
-open StarFederation.Datastar.SignalPath
 
 module View =
     let template content =
         Elem.html [ Attr.lang "en" ] [
-            Elem.head [] [
-                Ds.cdnScript
-                Elem.link [ Attr.href "style.css"; Attr.rel "stylesheet"; Attr.type' "text/css" ]
-            ]
+            Elem.head [] [ Ds.cdnScript ]
             Elem.body [ Ds.signal (sp"showWayToGo", false) ]
                 content ]
 

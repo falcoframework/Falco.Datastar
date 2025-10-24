@@ -1,10 +1,10 @@
-open System
 open Falco
 open Falco.Markup
 open Falco.Routing
 open Falco.Datastar
 open Microsoft.AspNetCore.Builder
-open StarFederation.Datastar.SignalPath
+open Falco.Datastar.SignalsFilter
+open Falco.Datastar.SignalPath
 
 let handleIndex : HttpHandler =
     let html =
@@ -26,24 +26,29 @@ let handleIndex : HttpHandler =
                 ]
 
                 Elem.hr []
-                Elem.h2 [] [ Text.raw "Ds.onRequestAnimationFrame" ]
-
-                Elem.div [ Ds.signal(sp"frame",0); Ds.onRequestAnimationFrame "$frame++"; Ds.text "$frame" ] []
-
-                Elem.hr []
                 Elem.h2 [] [ Text.raw "Ds.onInterval" ]
 
                 Elem.div [
                     Ds.signal (sp"intervalSignalOneSecond", false)
-                    Ds.onInterval "$intervalSignalOneSecond = !$intervalSignalOneSecond"
+                    Ds.onInterval ("$intervalSignalOneSecond = !$intervalSignalOneSecond", intervalMs = 1000)
                     Ds.text "'One Second Interval = ' + $intervalSignalOneSecond"
                 ] []
 
                 Elem.div [
                     Ds.signal (sp"intervalSignalFiveSecond", false)
-                    Ds.onInterval ("$intervalSignalFiveSecond = !$intervalSignalFiveSecond", TimeSpan.FromSeconds(5.0), leading = true)
+                    Ds.onInterval ("$intervalSignalFiveSecond = !$intervalSignalFiveSecond", intervalMs = 5000, leading = true)
                     Ds.text "'Five Second Interval = ' + $intervalSignalFiveSecond"
                 ] []
+
+                Elem.hr []
+                Elem.h2 [] [ Text.raw "Ds.effect" ]
+
+                Elem.div [
+                    Ds.effect "$effectText = (($intervalSignalFiveSecond ? 2 : 0) + ($intervalSignalOneSecond ? 1 : 0)).toString(2)"
+                ] [
+                    Text.raw "(($intervalSignalFiveSecond ? 2 : 0) + ($intervalSignalOneSecond ? 1 : 0)).toString(2) = "
+                    Elem.span [ Ds.text "$effectText" ] []
+                ]
 
                 Elem.hr []
                 Elem.h2 [] [ Text.raw "Ds.onEvent" ]
@@ -71,9 +76,9 @@ let handleIndex : HttpHandler =
 
                 Elem.hr []
 
-                Elem.div [ Ds.computed (sp"ranges.rangedSignal", (Ds.fit ("$ranges.numberSignal", (0, 100), (0, 1000)))) ] [
+                Elem.div [ Ds.computed (sp"ranges.rangedSignal", "$ranges.numberSignal * 10") ] [
                     Elem.h2 [] [ Text.raw "Ds.computed" ]
-                    Elem.span [ Ds.text "'Ds.fit (' + $ranges.numberSignal + ', (0, 100), (0, 1000)))) = ' + $ranges.rangedSignal" ] []
+                    Elem.span [ Ds.text "$ranges.numberSignal + ' * 10 = ' + $ranges.rangedSignal" ] []
                 ]
 
                 Elem.hr []
@@ -87,12 +92,12 @@ let handleIndex : HttpHandler =
 
                 Elem.hr []
 
-                Elem.div [ Ds.signal (sp"classSignal", "off") ] [
+                Elem.div [ Ds.signal (sp"classSignal", @"off") ] [
                     Elem.style [] [ Text.raw ".red { color:red }" ]
                     Elem.h2 [ Ds.class' ("red", "$classSignal === 'on'") ] [ Text.raw "Ds.class'"; ]
                     Elem.button
                         // classSignal could be a bool, but we are demo'ing more complicated expressions
-                        [ Ds.onClick "$classSignal = $classSignal === 'off' ? 'on' : 'off'" ]
+                        [ Ds.onClick @"$classSignal = $classSignal === 'off' ? 'on' : 'off'" ]
                         [ Text.raw "Click Me" ]
                 ]
 
@@ -120,7 +125,8 @@ let handleIndex : HttpHandler =
                     Elem.label [ Attr.for' "r6" ] [ Text.raw "Six" ]
                     Elem.br [
                         // note that this must follow AFTER the refs are created above
-                        Ds.onSignalChange (sp"checkBoxSignal", "$r4.name = $r5.name = $r6.name = ($checkBoxSignal ? 'radioGroup2' : 'radioGroup1')")
+                        Ds.filterOnSignalPatch (sf"^checkBoxSignal$")
+                        Ds.onSignalPatch "$r4.name = $r5.name = $r6.name = ($checkBoxSignal ? 'radioGroup2' : 'radioGroup1')"
                     ]
                 ]
 
@@ -128,7 +134,7 @@ let handleIndex : HttpHandler =
 
                 Elem.div [] [
                     Elem.h2 [] [ Text.raw "Signal Debugging" ]
-                    Elem.pre [ Ds.text "ctx.signals.JSON()" ] []
+                    Elem.pre [ Ds.jsonSignals ] []
                 ]
             ]
         ]
@@ -136,9 +142,10 @@ let handleIndex : HttpHandler =
 
 let handleClick : HttpHandler =
     let html = Elem.h2 [ Attr.id "hello" ] [ Text.raw "Hello, World from the Server!" ]
-    Response.ofHtmlFragments html
+    Response.ofHtmlElements html
 
 let wapp = WebApplication.Create()
+wapp.UseStaticFiles() |> ignore
 
 let endpoints =
     [

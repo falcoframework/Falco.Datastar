@@ -18,17 +18,15 @@ let handleIndex : HttpHandler =
     Response.ofHtml html
 
 let handleClick : HttpHandler =
-    // create an html fragment which will replace the button with the same `id`
+    // create an HTML element which will replace the button with the same `id`
     let html = Elem.h2 [ Attr.id "hello" ] [ Text.raw "Hello, World, from the Server!" ]
-    Response.ofHtmlFragments html
+    Response.ofHtmlElements html
 
 let wapp = WebApplication.Create()
 
 let endpoints =
-    [
-        get "/" handleIndex
-        get "/click" handleClick
-    ]
+    [ get "/" handleIndex
+      get "/click" handleClick ]
 
 wapp.UseRouting()
     .UseFalco(endpoints)

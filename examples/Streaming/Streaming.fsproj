@@ -24,4 +24,8 @@
       <PackageReference Include="ZstdSharp.Port" Version="0.8.5" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="wwwroot\" />
+    </ItemGroup>
+
 </Project>

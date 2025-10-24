@@ -1,184 +1,160 @@
-namespace Falco.Datastar
+[<RequireQualifiedAccess>]
+module Falco.Datastar.Response
 
 open System.Collections.Generic
-open System.Text
 open System.Text.Json
-open System.Text.Json.Nodes
-open Falco
-open Falco.Markup
-open Falco.Markup.Text
+open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
-open StarFederation.Datastar
-open StarFederation.Datastar.Scripts.BrowserConsoleAction
+open Microsoft.Extensions.Primitives
+open StarFederation.Datastar.FSharp
+open Falco.Markup
 
-[<AbstractClass; Sealed; RequireQualifiedAccess>]
-type Response =
+//////////////////////////////////////////////////////////////////
+// SSE RESPONSES
 
-    /// <summary>
-    /// Starts the 'text/event-stream' and returns a ServerSentEventHttpHandlers to be used with Response.sse* functions
-    /// </summary>
-    /// <param name="ctx">HttpContext</param>
-    static member startServerSentEventStream (ctx:HttpContext) =
-        let sseHandler = ServerSentEventHttpHandlers ctx.Response
-        sseHandler.StartResponse() |> ignore
-        sseHandler
+/// Send the text/event-stream header with additional headers; after, all other events can follow
+let sseStartResponseWithHeaders (ctx:HttpContext) (additionalHeaders:KeyValuePair<string, StringValues> seq) =
+    ServerSentEventGenerator.StartServerEventStreamAsync (ctx.Response, additionalHeaders)
 
-    //////////////////////////////////////////////////////////////////
-    // SSE RESPONSES
+/// Send the text/event-stream response header; after, all other events can follow
+let sseStartResponse (ctx:HttpContext) =
+    ServerSentEventGenerator.StartServerEventStreamAsync ctx.Response
 
-    /// <summary>
-    /// Sends an HTML fragments ServerSideEvent
-    /// </summary>
-    /// <param name="sseHandler">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="fragments">Fragments to send</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member sseHtmlFragments (sseHandler, fragments, ?sseOptions) =
-        ServerSentEventGenerator.MergeFragments (sseHandler, (renderHtml fragments), ?options=sseOptions)
+/// Patch an HTML DOM with elements
+let sseHtmlElementsOptions (ctx:HttpContext) (options:PatchElementsOptions) (elements:XmlNode) =
+    ServerSentEventGenerator.PatchElementsAsync (ctx.Response, renderHtml elements, options)
 
-    /// <summary>
-    /// Sends an HTML fragments ServerSideEvent
-    /// </summary>
-    /// <param name="sseHandler">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="fragments">Fragments to send</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member sseHtmlStringFragments (sseHandler, fragments, ?sseOptions) =
-        ServerSentEventGenerator.MergeFragments (sseHandler, fragments, ?options=sseOptions)
+/// Patch an HTML DOM with elements
+let sseHtmlElements (ctx:HttpContext) (elements:XmlNode) =
+    ServerSentEventGenerator.PatchElementsAsync (ctx.Response, renderHtml elements)
 
-    /// <summary>
-    /// Sends signals to be merged with signals on the client
-    /// </summary>
-    /// <param name="sseHandler">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="signals">Signals to merge</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member sseMergeSignals (sseHandler, signals, ?sseOptions) =
-        ServerSentEventGenerator.MergeSignals (sseHandler, signals, ?options=sseOptions)
+/// Patch HTML DOM with raw elements
+let sseStringElementsOptions (ctx:HttpContext) (options:PatchElementsOptions) (elements:string) =
+    ServerSentEventGenerator.PatchElementsAsync (ctx.Response, elements, options)
 
-    /// <summary>
-    /// Sends signals to be merged with signals on the client
-    /// </summary>
-    /// <param name="sseHandler">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="signalPath">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="signalValue">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member sseMergeSignal<'T> (sseHandler, signalPath:SignalPath, signalValue:'T, ?sseOptions) =
-        let signalUpdate = (signalPath, signalValue) ||> SignalPath.createJsonNodePathToValue |> _.ToJsonString()
-        ServerSentEventGenerator.MergeSignals (sseHandler, signalUpdate, ?options=sseOptions)
+/// Patch HTML DOM with raw elements
+let sseStringElements (ctx:HttpContext) (elements:string) =
+    ServerSentEventGenerator.PatchElementsAsync (ctx.Response, elements)
 
-    /// <summary>
-    /// Sends signals to be merged with signals on the client
-    /// </summary>
-    /// <param name="sseHandler">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="signals">Signals to merge</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    /// <param name="jsonSerializerOptions">Options for the serializer</param>
-    static member sseMergeSignals<'T> (sseHandler, signals:'T, ?sseOptions, ?jsonSerializerOptions) =
-        let jsonSerializerOptions = defaultArg jsonSerializerOptions JsonSerializerOptions.Default
-        let signals = JsonSerializer.Serialize(signals, jsonSerializerOptions)
-        ServerSentEventGenerator.MergeSignals (sseHandler, signals, ?options=sseOptions)
+/// Patch Datastar Signals
+let ssePatchSignalsOptions<'T> (ctx:HttpContext) (patchSignalsOptions:PatchSignalsOptions) (jsonSerializerOptions:JsonSerializerOptions) (signals:'T) =
+    ServerSentEventGenerator.PatchSignalsAsync (ctx.Response, (signals, jsonSerializerOptions) |> JsonSerializer.Serialize, patchSignalsOptions)
 
-    /// <summary>
-    /// Remove an HTML fragment from the client
-    /// </summary>
-    /// <param name="sseHandler">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="selector">The selector to remove on the client DOM</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member sseRemoveFragments (sseHandler, selector, ?sseOptions) =
-        ServerSentEventGenerator.RemoveFragments (sseHandler, selector, ?options=sseOptions)
+/// Patch Datastar Signals
+let ssePatchSignals<'T> (ctx:HttpContext) (signals:'T) =
+    ServerSentEventGenerator.PatchSignalsAsync (ctx.Response, signals |> JsonSerializer.Serialize)
 
-    /// <summary>
-    /// Remove signals from client
-    /// </summary>
-    /// <param name="sseHandler">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="signalPaths">The paths to the signals that should be removed from the signals on the client</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member sseRemoveSignals (sseHandler, signalPaths, ?sseOptions) =
-        ServerSentEventGenerator.RemoveSignals (sseHandler, signalPaths, ?options=sseOptions)
+// Patch Datastar Signals with a SignalPath -> value
+let ssePatchSignalOptions<'T> (ctx:HttpContext) (patchSignalOptions:PatchSignalsOptions) (signalPath:SignalPath) (signalValue:'T) =
+    let signalPatch = (signalPath, signalValue) ||> SignalPath.createJsonNodeFromPathAndValue |> _.ToJsonString(JsonSerializerOptions.SignalsDefault)
+    ServerSentEventGenerator.PatchSignalsAsync (ctx.Response, signalPatch, patchSignalOptions)
 
-    /// <summary>
-    /// Execute a Javascript on the client
-    /// </summary>
-    /// <param name="sseHandler">ServerSentEventHttpHandlers from Response.startServerSentEventStream</param>
-    /// <param name="script">Javascript to run on the client</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member sseExecuteScript (sseHandler, script, ?sseOptions) =
-        ServerSentEventGenerator.ExecuteScript (sseHandler, script, ?options=sseOptions)
+// Patch Datastar Signals with a SignalPath -> value
+let ssePatchSignal<'T> (ctx:HttpContext) (signalPath:SignalPath) (signalValue:'T) =
+    let signalPatch = (signalPath, signalValue) ||> SignalPath.createJsonNodeFromPathAndValue |> _.ToJsonString()
+    ServerSentEventGenerator.PatchSignalsAsync (ctx.Response, signalPatch)
 
-    //////////////////////////////////////////////////////////////////
-    // OF RESPONSES
+/// Remove an HTML Element by its selector; or multiple if comma separated
+let sseRemoveElementOptions (ctx:HttpContext) (options:RemoveElementOptions) (selector:Selector) =
+    ServerSentEventGenerator.RemoveElementAsync (ctx.Response, selector, options)
 
-    /// <summary>
-    /// Responds with an HTML fragments ServerSideEvent
-    /// </summary>
-    /// <param name="fragments">Fragments to send</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member ofHtmlFragments (fragments, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.MergeFragments ((Response.startServerSentEventStream ctx), (renderHtml fragments), ?options=sseOptions)
-        )
+/// Remove an HTML Element by its selector; or multiple if comma separated
+let sseRemoveElement (ctx:HttpContext) (selector:Selector) =
+    ServerSentEventGenerator.RemoveElementAsync (ctx.Response, selector)
 
-    /// <summary>
-    /// Responds with an HTML fragments ServerSideEvent
-    /// </summary>
-    /// <param name="fragments">Fragments to send</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member ofHtmlStringFragments (fragments, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.MergeFragments ((Response.startServerSentEventStream ctx), fragments, ?options=sseOptions)
-        )
+/// Execute Javascript on the client
+let sseExecuteScriptOptions (ctx:HttpContext) (options:ExecuteScriptOptions)  (script:string) =
+    ServerSentEventGenerator.ExecuteScriptAsync (ctx.Response, script, options)
 
-    /// <summary>
-    /// Responds with signals to be merged with signals on the client
-    /// </summary>
-    /// <param name="signals">Signals to merge</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member ofMergeSignals (signals, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.MergeSignals ((Response.startServerSentEventStream ctx), signals, ?options=sseOptions)
-        )
+/// Execute Javascript on the client
+let sseExecuteScript (ctx:HttpContext) (script:string) =
+    ServerSentEventGenerator.ExecuteScriptAsync (ctx.Response, script)
 
-    /// <summary>
-    /// Sends signals in a ServerSideEvent to be merged with signals on the client
-    /// </summary>
-    /// <param name="signals">Signals to merge</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    /// <param name="jsonSerializerOptions">Options for the serializer</param>
-    static member ofMergeSignals<'T> (signals:'T, ?sseOptions, ?jsonSerializerOptions) : HttpHandler = (fun ctx ->
-        let jsonSerializerOptions = defaultArg jsonSerializerOptions JsonSerializerOptions.Default
-        let signals = JsonSerializer.Serialize(signals, jsonSerializerOptions)
-        ServerSentEventGenerator.MergeSignals ((Response.startServerSentEventStream ctx), signals, ?options=sseOptions)
-        )
+//////////////////////////////////////////////////////////////////
+// OF RESPONSES
 
-    /// <summary>
-    /// Merge a single signal on the client
-    /// </summary>
-    /// <param name="signalPath">Path to the signal you want to update</param>
-    /// <param name="signalValue">The value to set it to</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member ofMergeSignal<'T> (signalPath, signalValue:'T, ?sseOptions) : HttpHandler = (fun ctx ->
-        let signalUpdate = (signalPath, signalValue) ||> SignalPath.createJsonNodePathToValue |> _.ToJsonString()
-        ServerSentEventGenerator.MergeSignals ((Response.startServerSentEventStream ctx), signalUpdate, ?options=sseOptions)
-        )
+let internal nu task = task :> Task  // removes <unit> and converts Task<unit> to Task
 
-    /// <summary>
-    /// Remove an HTML fragment from the client
-    /// </summary>
-    /// <param name="selector">The selector to remove on the client DOM</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member ofRemoveFragments (selector, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.RemoveFragments ((Response.startServerSentEventStream ctx), selector, ?options=sseOptions)
-        )
+/// Patch an HTML DOM with elements
+let ofHtmlElementsOptions (options:PatchElementsOptions) (elements:XmlNode) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! sseHtmlElementsOptions ctx options elements
+    }))
 
-    /// <summary>
-    /// Remove signals from client
-    /// </summary>
-    /// <param name="signalPaths">The paths to the signals that should be removed from the signals on the client</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member ofRemoveSignals (signalPaths, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.RemoveSignals ((Response.startServerSentEventStream ctx), signalPaths, ?options=sseOptions)
-        )
+/// Patch an HTML DOM with elements
+let ofHtmlElements (elements:XmlNode) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! sseHtmlElements ctx elements
+    }))
 
-    /// <summary>
-    /// Execute a Javascript on the client
-    /// </summary>
-    /// <param name="script">Javascript to run on the client</param>
-    /// <param name="sseOptions">ServerSentEvent Options</param>
-    static member ofExecuteScript (script, ?sseOptions) : HttpHandler = (fun ctx ->
-        ServerSentEventGenerator.ExecuteScript ((Response.startServerSentEventStream ctx), script, ?options=sseOptions)
-        )
+/// Patch HTML DOM with raw elements
+let ofHtmlStringElementsOptions (options:PatchElementsOptions) (elements:string) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! sseStringElementsOptions ctx options elements
+    }))
+
+/// Patch HTML DOM with raw elements
+let ofHtmlStringElements (elements:string) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! sseStringElements ctx elements
+    }))
+
+/// Patch Datastar Signals
+let ofPatchSignalsOptions<'T> (patchSignalOptions:PatchSignalsOptions) (jsonSerializerOptions:JsonSerializerOptions) (signals:'T) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! ssePatchSignalsOptions ctx patchSignalOptions jsonSerializerOptions signals
+    }))
+
+/// Patch Datastar Signals
+let ofPatchSignals<'T> (signals:'T) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! ssePatchSignals ctx signals
+    }))
+
+/// Patch Datastar Signals
+let ofPatchSignalOptions<'T> (options:PatchSignalsOptions) (signalPath:SignalPath) (signalValue:'T) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! ssePatchSignalOptions ctx options signalPath signalValue
+    }))
+
+/// Patch Datastar Signals
+let ofPatchSignal<'T> (signalPath:SignalPath) (signalValue:'T) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! ssePatchSignal ctx signalPath signalValue
+    }))
+
+/// Remove an HTML Element by its selector; or multiple if comma separated
+let ofRemoveElementOptions (options:RemoveElementOptions) (selector:Selector) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! sseRemoveElementOptions ctx options selector
+    }))
+
+/// Remove an HTML Element by its selector; or multiple if comma separated
+let ofRemoveElement (selector:Selector) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! sseRemoveElement ctx selector
+    }))
+
+/// Execute Javascript on the client
+let ofExecuteScriptOptions (options:ExecuteScriptOptions) (script:string) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! sseExecuteScriptOptions ctx options script
+    }))
+
+/// Execute Javascript on the client
+let ofExecuteScript (script:string) =
+    (fun ctx -> nu (task {
+        do! sseStartResponse ctx
+        return! sseExecuteScript ctx script
+    }))

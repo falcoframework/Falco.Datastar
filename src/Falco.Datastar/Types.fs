@@ -1,63 +1,82 @@
 namespace Falco.Datastar
 
 open System
+open System.Collections.Generic
+open System.Text
 open System.Text.Json
 open System.Text.Json.Nodes
 open System.Text.RegularExpressions
 open System.Web
+open Falco.Markup
+open StarFederation.Datastar.FSharp
 
-module Consts =
+module Constants =
     let mutable dataSlugPrefix = "data"
 
+type SignalsFilter =
+    { IncludePattern : string voption
+      ExcludePattern : string voption }
+    static member None = { IncludePattern = ValueNone; ExcludePattern = ValueNone }
+    static member Include pattern =  { IncludePattern = ValueSome pattern; ExcludePattern = ValueNone }
+    static member Exclude pattern =  { IncludePattern = ValueNone; ExcludePattern = ValueSome pattern }
+    static member serialize (signalFilter:SignalsFilter) =
+        if signalFilter = SignalsFilter.None then
+            ""
+        else
+            StringBuilder()
+            |> _.Append("{ ")
+            |> (fun sb ->
+                let _ =
+                    match signalFilter.IncludePattern with
+                    | ValueSome includeExp -> sb.Append($"include: /{includeExp}/")
+                    | _ -> sb
+                let _ =
+                    match signalFilter.ExcludePattern with
+                    | ValueSome excludeExp -> sb.Append($"exclude: /{excludeExp}'")
+                    | _ -> sb
+                sb
+                )
+            |> _.Append(" }")
+            |> _.ToString()
+
+module SignalsFilter =
+    let sf (includePattern:string) = SignalsFilter.Include includePattern
+
+module SignalPath =
+    let sp = SignalPath.create
+
+    let getSignalFromJson<'T> (signalPath:SignalPath) (jsonDocument:JsonDocument) =
+        let getSignalCore (jsonElement:JsonElement) (signalPath:SignalPath) =
+            signalPath
+            |> SignalPath.keys
+            |> Seq.fold (fun (currentJsonElementOpt:JsonElement voption) (key:string) ->
+                currentJsonElementOpt
+                |> ValueOption.bind (fun (jsonElement:JsonElement) ->
+                    match jsonElement.TryGetProperty(key) with
+                    | false, _ -> ValueNone
+                    | true, jsonElement -> ValueSome jsonElement
+                    )
+                ) (ValueSome jsonElement)
+        try
+            getSignalCore jsonDocument.RootElement signalPath |> ValueOption.map _.Deserialize<'T>()
+        with | _ -> ValueNone
+
+    let createJsonNodeFromPathAndValue<'T> signalPath (signalValue:'T) =
+        signalPath
+        |> SignalPath.keys
+        |> Seq.rev
+        |> Seq.fold (fun json key ->
+            JsonObject([ KeyValuePair<string, JsonNode> (key, json) ]) :> JsonNode
+            ) (JsonValue.Create(signalValue) :> JsonNode)
+
+module Selector =
+    let sel = Selector.create
+
 type IntersectsVisibility =
-    /// <summary>
     /// Triggers when half of the element is visible
-    /// </summary>
     | Half
-    /// <summary>
     /// Triggers when the full element is visible
-    /// </summary>
     | Full
-
-type ScrollIntoViewAnimation =
-    /// <summary>
-    /// Scrolling is animated smoothly
-    /// </summary>
-    | Smooth
-    /// <summary>
-    /// Scrolling is instant
-    /// </summary>
-    | Instant
-    /// <summary>
-    /// Scrolling is determined by the computed CSS `scroll-behavior` property
-    /// </summary>
-    | Auto
-
-type ScrollIntoViewWhere =
-    /// <summary>
-    /// Scrolls to the top of the element
-    /// </summary>
-    | Top
-    /// <summary>
-    /// Scrolls to the left of the element
-    /// </summary>
-    | Left
-    /// <summary>
-    /// Scrolls to the horizontal center of the element
-    /// </summary>
-    | Center
-    /// <summary>
-    /// Scrolls to the bottom of the element
-    /// </summary>
-    | Bottom
-    /// <summary>
-    /// Scrolls to the right of the element
-    /// </summary>
-    | Right
-    /// <summary>
-    /// Scrolls to the nearest vertical or horizontal edge of the element
-    /// </summary>
-    | Edge
 
 type BackendAction =
     | Get of url:string
@@ -70,20 +89,50 @@ type ContentType =
     | Json
     | Form of string voption
 
+/// Request Options for backend action plugins
+/// https://data-star.dev/reference/action_plugins
 type RequestOptions =
-    { ContentType: ContentType
-      IncludeLocal: bool
+    {
+      /// The type of content to send. A value of json sends all signals in a JSON request.
+      /// A value of form tells the action to look for the closest form to the element on which it is placed
+      /// (unless a selector option is provided), perform validation on the form elements,
+      /// and send them to the backend using a form request (no signals are sent). Defaults to json.
+      ContentType: ContentType
+
+      /// Filter object utilizing regular expressions for which signals to send
+      FilterSignals: SignalsFilter
+
+      /// Specifies a form to send when the ContentType is set to Form.
+      /// If set to ValueNone, the closest form is used. Defaults to ValueNone.
+      Selector: Selector voption
+
+      /// HTTP Headers to send with the request.
       Headers: (string*string) list
+
+      /// Whether to keep the connection open when the page is hidden. Useful for dashboards
+      /// but can cause a drain on battery life and other resources when enabled. Defaults to false.
       OpenWhenHidden: bool
+
+      /// The retry interval in milliseconds. Defaults to 1 second
       RetryInterval: TimeSpan
+
+      /// A numeric multiplier applied to scale retry wait times. Defaults to 2.
       RetryScaler: float
+
+      /// The maximum allowable wait time in milliseconds between retries. Defaults to 30 seconds.
       RetryMaxWait: TimeSpan
+
+      /// The maximum number of retry attempts. Defaults to 10.
       RetryMaxCount: int
+
+      /// An AbortSignal object that can be used to cancel the request.
+      /// https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
       Abort: obj }
 
     static member Defaults =
         { ContentType = Json
-          IncludeLocal = false
+          FilterSignals = SignalsFilter.None
+          Selector = ValueNone
           Headers = []
           OpenWhenHidden = false
           RetryInterval = TimeSpan.FromSeconds(1.0)
@@ -103,8 +152,12 @@ type RequestOptions =
             | ValueNone -> ()
             | ValueSome formSelector' -> jsonObject.Add("selector", formSelector')
 
-        if backendActionOptions.IncludeLocal <> RequestOptions.Defaults.IncludeLocal then
-            jsonObject.Add("includeLocal", backendActionOptions.IncludeLocal.ToString().ToLower())
+        if backendActionOptions.FilterSignals <> SignalsFilter.None then
+            jsonObject.Add("includeLocal", backendActionOptions.FilterSignals |> SignalsFilter.serialize |> JsonNode.Parse)
+
+        if backendActionOptions.Selector.IsValueSome then
+            let selector = backendActionOptions.Selector |> ValueOption.get
+            jsonObject.Add("selector", selector)
 
         if backendActionOptions.Headers.Length > 0 then
             let headerObject = JsonObject()
@@ -133,113 +186,195 @@ type RequestOptions =
         options.WriteIndented <- false
         HttpUtility.HtmlEncode(jsonObject.ToJsonString(options))
 
-[<Sealed>]
-type Debounce(timeSpan:TimeSpan, leading:bool, noTrail:bool) =
-    member private _.timeSpan = timeSpan
-    member private _.leading = leading
-    member private _.noTrail = noTrail
-    static member Serialize (debounce:Debounce) =
-        let leading' = debounce.leading |> Bool.eitherOr ".leading" ""
-        let noTrail' = debounce.noTrail |> Bool.eitherOr ".notrail" ""
-        debounce.timeSpan = TimeSpan.Zero |> Bool.eitherOr "" $"debounce.{debounce.timeSpan.TotalMilliseconds}ms{leading'}{noTrail'}"
-    static member SerializeOption (debounceOpt:Debounce option) =
-        match debounceOpt with
-        | None -> None
-        | Some debounce when debounce.timeSpan = TimeSpan.Zero -> None
-        | Some debounce -> Some (Debounce.Serialize debounce)
+type Debounce =
+    { TimeSpan:TimeSpan
+      Leading:bool
+      NoTrail:bool }
     static member With (timeSpan:TimeSpan, ?leading:bool, ?noTrail:bool) =
-        let leading = defaultArg leading false
-        let noTrail = defaultArg noTrail false
-        Debounce(timeSpan, leading, noTrail)
+        { TimeSpan = timeSpan; Leading = (defaultArg leading false); NoTrail = (defaultArg noTrail false) }
+    static member With (milliseconds:int, ?leading:bool, ?noTrail:bool) =
+        { TimeSpan = TimeSpan.FromMilliseconds(milliseconds); Leading = (defaultArg leading false); NoTrail = (defaultArg noTrail false) }
 
-[<Sealed>]
-type Throttle(timeSpan:TimeSpan, noLeading:bool, trail:bool) =
-    member private _.timeSpan = timeSpan
-    member private _.noLeading = noLeading
-    member private _.trail = trail
-    static member Serialize (throttle:Throttle) =
-        let noLeading' = throttle.noLeading |> Bool.eitherOr ".noleading" ""
-        let trail' = throttle.trail |> Bool.eitherOr ".trail" ""
-        throttle.timeSpan = TimeSpan.Zero |> Bool.eitherOr "" $"throttle.{throttle.timeSpan.TotalMilliseconds}ms{noLeading'}{trail'}"
-    static member SerializeOption (throttleOpt:Throttle option) =
-        match throttleOpt with
-        | None -> None
-        | Some throttle when throttle.timeSpan = TimeSpan.Zero -> None
-        | Some throttle -> Some (Throttle.Serialize throttle)
+type Throttle =
+    { TimeSpan:TimeSpan
+      NoLeading:bool
+      Trail:bool }
     static member With (timeSpan:TimeSpan, ?noLeading:bool, ?trail:bool) =
-        let noLeading' = defaultArg noLeading false
-        let trail' = defaultArg trail false
-        Throttle(timeSpan, noLeading', trail')
+        { TimeSpan = timeSpan; NoLeading = (defaultArg noLeading false); Trail = (defaultArg trail false) }
+    static member With (milliseconds:int, ?noLeading:bool, ?trail:bool) =
+        { TimeSpan = TimeSpan.FromMilliseconds(milliseconds); NoLeading = (defaultArg noLeading false); Trail = (defaultArg trail false) }
 
 type OnEventModifier =
-    /// <summary>
-    /// Trigger event once. Can only be used with the built-in events (https://data-star.dev/reference/attribute_plugins#special-events).
-    /// </summary>
+    /// Trigger event once. Can only be used with the built-in events
     | Once
-    /// <summary>
-    /// Do not call `preventDefault` on the event listener. Can only be used with the built-in events (https://data-star.dev/reference/attribute_plugins#special-events).
-    /// </summary>
+    /// Do not call `preventDefault` on the event listener. Can only be used with the built-in events
     | Passive
-    /// <summary>
-    /// Use a capture event listener. Can only be used with the built-in events (https://data-star.dev/reference/attribute_plugins#special-events).
-    /// </summary>
+    /// Use a capture event listener. Can only be used with the built-in events
     | Capture
-    /// <summary>
+    /// Delay the event listener by a Timespan
+    | Delay of TimeSpan
+    /// Delay the event listener by milliseconds
+    | DelayMs of int
     /// Debounce the event listener; new events after an initial event, within a TimeSpan, are ignored.
-    /// </summary>
     | Debounce of Debounce
-    /// <summary>
     /// Throttle the event listener; only fires the last event within a TimeSpan.
-    /// </summary>
     | Throttle of Throttle
-    /// <summary>
-    /// Wraps the expression in `document.startViewTransition()` when the View Transition API is available.
-    /// </summary>
-    | ViewTransition
-    /// <summary>
     /// Attaches the event listener to the window element.
-    /// </summary>
     | Window
-    /// <summary>
     /// Triggers the event when it occurs outside the element.
-    /// </summary>
     | Outside
-    /// <summary>
     /// Call `preventDefault` on the event listener
-    /// </summary>
     | Prevent
-    /// <summary>
     /// Calls `stopPropagation` on the event listener.
-    /// </summary>
     | Stop
-    with
-    static member internal Serialize eventModifier =
-        match eventModifier with
-        | Once -> "once"
-        | Passive -> "passive"
-        | Capture -> "capture"
-        | Debounce debounce -> (Debounce.Serialize debounce)
-        | Throttle throttle -> (Throttle.Serialize throttle)
-        | ViewTransition -> "viewtransition"
-        | Window -> "window"
-        | Outside -> "outside"
-        | Prevent -> "prevent"
-        | Stop -> "stop"
+    /// Wrap the expression in document.startViewTransition(), if View Transition API is available
+    | ViewTransition
 
 /// <summary>
-/// https://data-star.dev/reference/attribute_plugins#data-on
+/// Modifier for a DsAttr. &lt;data-...__Name.Tag.Tag=...&gt;
 /// </summary>
-type internal OnEvent =
+type DsAttrModifier =
+    { Name:string
+      Tags:string list }
+    with
+    static member Delay (delay:TimeSpan) =
+        { Name = "delay"; Tags = [ $"{delay.TotalMilliseconds}ms" ] }
+
+    static member DelayMs (delay:int) =
+        { Name = "delay"; Tags = [ $"{delay}ms" ] }
+
+    static member DurationMs (duration:int, leading:bool) =
+        { Name = "duration"
+          Tags = [
+              $"{duration}ms"
+              if leading then "leading"
+          ] }
+
+    static member Throttle (throttle:Throttle) =
+        { Name = "throttle"
+          Tags = [
+            $"{throttle.TimeSpan.TotalMilliseconds}ms"
+            if throttle.NoLeading then "noleading"
+            if throttle.Trail then "trail"
+          ] }
+
+    static member Debounce (debounce:Debounce) =
+        { Name = "debounce"
+          Tags = [
+            $"{debounce.TimeSpan.TotalMilliseconds}ms"
+            if debounce.Leading then "leading"
+            if debounce.NoTrail then "notrail"
+          ] }
+
+    static member OnEventModifier (onEventModifier:OnEventModifier) =
+        match onEventModifier with
+        | Once -> { Name = "once"; Tags = [] }
+        | Passive -> { Name = "passive"; Tags = [] }
+        | Capture -> { Name = "capture"; Tags = [] }
+        | Delay delay -> (DsAttrModifier.Delay delay)
+        | DelayMs ms -> { Name = "delay"; Tags = [ $"{ms}ms" ] }
+        | Debounce debounce -> (DsAttrModifier.Debounce debounce)
+        | Throttle throttle -> (DsAttrModifier.Throttle throttle)
+        | ViewTransition -> { Name = "viewtransition"; Tags = [] }
+        | Window -> { Name = "window"; Tags = [] }
+        | Outside -> { Name = "outside"; Tags = [] }
+        | Prevent -> { Name = "prevent"; Tags = [] }
+        | Stop -> { Name = "stop"; Tags = [] }
+
+/// <summary>
+/// &lt;data-Name-Target__Modifiers="Value"&gt;
+/// </summary>
+type DsAttr =
+    { Name:string
+      Target:string voption
+      Modifiers:DsAttrModifier list
+      HasCaseModifier:bool
+      Value:string voption }
+    with
     static member private removeOnRegex = Regex("(^on-?|^data-on-?)", RegexOptions.Compiled)
-    static member private removeOn str =
-        match str with
-        | "online" -> "online"
-        | str -> OnEvent.removeOnRegex.Replace(str, "")
-    static member internal Serialize (event:string, eventModifiers:OnEventModifier list) =
-        let event' = (event, "") |> OnEvent.removeOnRegex.Replace
-        let eventModifiers' =
-            eventModifiers
-            |> List.map OnEventModifier.Serialize
-            |> List.filter (String.IsNullOrWhiteSpace >> not)
-            |> String.concat "__"
-        $"data-on-{event'}{eventModifiers'}"
+
+    static member inline start name =
+        { Name = name; Target = ValueNone; Modifiers = []; Value = ValueNone; HasCaseModifier = false }
+
+    static member startEvent eventName =
+        let removeOn str =
+            match str with
+            | "online" -> "online"
+            | str -> DsAttr.removeOnRegex.Replace(str, "")
+        { Name = $"on-{(removeOn eventName)}"; Target = ValueNone; Modifiers = []; Value = ValueNone; HasCaseModifier = false }
+
+    static member inline addTarget name dsAttr=
+        { dsAttr with Target = ValueSome name }
+
+    static member addSignalPathTarget (signalPath:SignalPath) =
+        signalPath
+        |> SignalPath.keys
+        |> Seq.map SignalPath.kebabValue
+        |> String.concat "."
+        |> DsAttr.addTarget
+
+    static member inline addModifier modifier  dsAttr =
+        { dsAttr with Modifiers = (modifier :: dsAttr.Modifiers) }
+
+    static member inline addModifierOption modifierOption dsAttr =
+        match modifierOption with
+        | Some modifier -> DsAttr.addModifier modifier dsAttr
+        | None -> dsAttr
+
+    static member inline addModifierName modifierName =
+        DsAttr.addModifier { Name = modifierName; Tags = [] }
+
+    static member inline addModifierNameIf modifierName bool dsAttr =
+        if bool
+        then DsAttr.addModifierName modifierName dsAttr
+        else dsAttr
+
+    static member inline addValue (value:string) dsAttr =
+        { dsAttr with Value = ValueSome value }
+
+    static member inline generateKey dsAttr =
+        StringBuilder()
+        |> _.Append(Constants.dataSlugPrefix) |> _.Append('-')
+        |> _.Append(dsAttr.Name)
+        |> (fun sb ->
+            match dsAttr.Target with
+            | ValueNone -> sb
+            | ValueSome target -> sb.Append('-') |> _.Append(target)
+            )
+        |> (fun sb ->
+            match dsAttr.Modifiers with
+            | [] -> sb
+            | modifiers ->
+                for modifier in modifiers do
+                    sb.Append("__") |> _.Append(modifier.Name) |> ignore
+                    for tag in modifier.Tags do
+                        sb.Append('.') |> _.Append(tag) |> ignore
+                sb
+            )
+        |> _.ToString()
+
+    static member create dsAttr =
+        let dsAttrKey = dsAttr |> DsAttr.generateKey
+        match dsAttr.Value with
+        | ValueSome value -> Attr.create dsAttrKey value
+        | ValueNone -> Attr.createBool dsAttrKey
+
+    static member inline create (name, ?targetName, ?value, ?hasCaseModifier) =
+        { Name = name
+          Target = targetName |> Option.toValueOption
+          Modifiers = []
+          Value = value |> Option.toValueOption
+          HasCaseModifier = (defaultArg hasCaseModifier false) }
+        |> DsAttr.create
+
+    static member inline createSp (name, signalPath, ?value, ?hasCaseModifier) =
+        { Name = name
+          Target =
+              signalPath
+              |> SignalPath.kebabValue
+              |> ValueSome
+          Modifiers = []
+          Value = value |> Option.toValueOption
+          HasCaseModifier = (defaultArg hasCaseModifier false) }
+        |> DsAttr.create
+
