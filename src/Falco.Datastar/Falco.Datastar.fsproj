@@ -38,6 +38,7 @@
   <ItemGroup>
     <PackageReference Include="Falco" Version="5.0.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
+    <PackageReference Include="StarFederation.Datastar.FSharp" Version="1.1.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,9 +53,4 @@
       <Link>README.md</Link>
     </Content>
   </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\datastar-dotnet\src\fsharp\StarFederation.Datastar.FSharp.fsproj" />
-  </ItemGroup>
-
 </Project>
