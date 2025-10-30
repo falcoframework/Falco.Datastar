@@ -33,6 +33,7 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>
+    <Title>Falco.Datastar</Title>
   </PropertyGroup>
 
   <ItemGroup>

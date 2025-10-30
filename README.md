@@ -142,7 +142,7 @@ Some important notes: Signals defined later in the DOM tree override those defin
 - [data-on](#dsonevent--data-on)
 - [data-on-intersect](#dsonintersect--data-on-intersect)
 - [data-on-interval](#dsoninterval--data-on-interval)
-- [data-on-signal-patch](#dsonsignalpatch--dsonsignalpatchfilter-data-on-signal-patch)
+- [data-on-signal-patch](#dsonsignalpatch--dsonsignalpatchfilter--data-on-signal-patch)
 - [data-ref](#dsref--data-ref)
 - [data-show](#dsshow--data-show)
 - [data-signals](#dssignals--dssignal--data-signals)
