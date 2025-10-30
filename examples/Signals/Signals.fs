@@ -125,7 +125,7 @@ let handleIndex : HttpHandler =
                     Elem.label [ Attr.for' "r6" ] [ Text.raw "Six" ]
                     Elem.br [
                         // note that this must follow AFTER the refs are created above
-                        Ds.filterOnSignalPatch (sf"^checkBoxSignal$")
+                        Ds.onSignalPatchFilter (sf"^checkBoxSignal$")
                         Ds.onSignalPatch "$r4.name = $r5.name = $r6.name = ($checkBoxSignal ? 'radioGroup2' : 'radioGroup1')"
                     ]
                 ]

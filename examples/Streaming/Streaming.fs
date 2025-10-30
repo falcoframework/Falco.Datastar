@@ -41,7 +41,7 @@ let handleIndex ctx = task {
             Elem.body [
                 Ds.signal (SignalPath.userName, user)
                 Ds.signal (SignalPath.displayType, UserState.displayBadApple)
-                Ds.filterOnSignalPatch (SignalsFilter.Include SignalPath.displayType)
+                Ds.onSignalPatchFilter (SignalsFilter.Include SignalPath.displayType)
                 Ds.onSignalPatch (Ds.get "/channel")
                 Ds.safariStreamingFix
             ] [

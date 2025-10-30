@@ -188,7 +188,7 @@ type Ds =
     /// https://data-star.dev/reference/attributes#data-ignore
     /// </summary>
     /// <returns>Attribute</returns>
-    static member ignoreThis =
+    static member ignoreSelf =
         DsAttr.start "ignore"
         |> DsAttr.addModifier { Name="self"; Tags = [] }
         |> DsAttr.create
@@ -283,7 +283,7 @@ type Ds =
 
     /// <summary>
     /// Fires the expression when a signal is changed. Filter using Ds.filterOnSignalPatch
-    /// hhttps://data-star.dev/reference/attributes#data-on-signal-patch
+    /// https://data-star.dev/reference/attributes#data-on-signal-patch
     /// </summary>
     /// <param name="expression">The expression to evaluate when the event is triggered; https://data-star.dev/guide/datastar_expressions</param>
     /// <param name="delayMs">The time to wait before executing the expression in milliseconds; default = 0</param>
@@ -304,7 +304,7 @@ type Ds =
     /// </summary>
     /// <param name="signalsFilter">Regex of signal paths to be included and excluded</param>
     /// <returns>Attribute</returns>
-    static member filterOnSignalPatch (signalsFilter:SignalsFilter) =
+    static member onSignalPatchFilter (signalsFilter:SignalsFilter) =
         DsAttr.start "on-signal-patch-filter"
         |> DsAttr.addValue (signalsFilter |> SignalsFilter.serialize)
         |> DsAttr.create
