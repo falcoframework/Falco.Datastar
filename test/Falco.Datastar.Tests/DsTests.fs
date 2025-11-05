@@ -15,4 +15,4 @@ module DsTests =
     [<Fact>]
     let ``Ds.bind should create an attribute`` () =
         testElem [ Ds.bind "signalPath" ]
-        |> should equal """<div data-bind-signal-path>div</div>"""
+        |> should equal """<div data-bind:signal-path>div</div>"""

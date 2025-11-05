@@ -126,8 +126,7 @@ Some important notes: Signals defined later in the DOM tree override those defin
 - [Binding to Signals](#signal-binding)
 - [Events and Triggers](#events-and-triggers)
 - [Actions and Functions](#actions-and-functions)
-- [Miscellaneous Actions](#miscellaneous-actions)
-- [When to $](#_when-to-_)
+- [When to $](#when-to-)
 
 ## _Attribute Index_
 
@@ -136,15 +135,14 @@ Some important notes: Signals defined later in the DOM tree override those defin
 - [data-class](#dsclass--data-class)
 - [data-computed](#dscomputed--data-computed)
 - [data-effect](#dseffect--data-effect)
-- [data-ignore](#dsignore-dsignorethis-dsignoremorph--data-star-ignore)
+- [data-ignore](#dsignore--dsignoreself--dsignoremorph--data-star-ignore)
 - [data-indicator](#dsindicator--data-indicator)
 - [data-json-signals](#dssignals--dssignal--data-signals)
+- [data-init](#dsinit--data-init)
 - [data-on](#dsonevent--data-on)
 - [data-on-intersect](#dsonintersect--data-on-intersect)
 - [data-on-interval](#dsoninterval--data-on-interval)
-- [data-on-load](#dsonload--data-on-load)
 - [data-on-signal-patch](#dsonsignalpatch--dsonsignalpatchfilter--data-on-signal-patch)
-- [data-on-signal-patch-filter](#dsonsignalpatch--dsonsignalpatchfilter--data-on-signal-patch)
 - [data-ref](#dsref--data-ref)
 - [data-show](#dsshow--data-show)
 - [data-signals](#dssignals--dssignal--data-signals)
@@ -228,7 +226,7 @@ Example: setting the innerText of a `<div>` to a value that is updated by a serv
 ### [Ds.bind : `data-bind`](https://data-star.dev/reference/attributes#data-bind)
 
 Creates a two-way binding from a signal to the "value" of an HTML "input" element. Can be placed on any HTML element on which data can be input or choices
-selected (e.g. `input`, `textarea`, `select`, `checkbox` and `radio` elements, as well as web components. (Although not necessary, you can find the `switch` statement in the
+selected (e.g. `input`, `textarea`, `select`, `checkbox` and `radio` elements, as well as web components. Although not necessary, you can find the `switch` statement in the
 [source](https://github.com/starfederation/datastar/blob/main/library/src/plugins/attributes/bind.ts) to see how signals are translated).
 The signal will be created if it does not already exist. And the type of the signal is preserved during binding; if an element's value changes,
 the signal value is automatically converted to match the original (see the [documentation](https://data-star.dev/reference/attributes#data-bind) for an example.)
@@ -285,6 +283,16 @@ Elem.div [ Ds.style "display" "$hiding && 'none'" ] [ Text.raw "Might be hiding"
 Events and triggers result in [Datastar expressions](https://data-star.dev/guide/datastar_expressions) being executed. This can result in signal changes and other expressions being run.
 Example: clicking a button to send a request or an element scrolling into view.
 
+### [Ds.init : `data-init`](https://data-star.dev/reference/attributes#data-init)
+
+Runs an expression when the element is loaded into the DOM. **Important:** when patching elements,
+`ElementPatchMode.Replace` the [Datastar expression](https://data-star.dev/guide/datastar_expressions)
+will be fired a second time, but will not with `ElementPatchMode.Outer`.
+
+```fsharp
+Elem.div [ Ds.init (Ds.get "/moreAgents") ] []
+```
+
 ### [Ds.onEvent : `data-on`](https://data-star.dev/reference/attributes#data-on)
 
 Attaches an event listener to an element, executing a [Datastar expression](https://data-star.dev/guide/datastar_expressions) whenever the event is triggered.
@@ -297,7 +305,7 @@ Elem.div [ Ds.onEvent("mouseenter", "$show = !$show"); Ds.onEvent("mouseexit", "
 
 ```fsharp
 Elem.button [ Ds.onClick "$show = !$show" ] [ Text.raw "Peek-a-boo!" ]
-Elem.div [ Ds.onLoad (Ds.get "/edit") ] []
+Elem.div [ Ds.init (Ds.get "/edit") ] []
 ```
 
 #### `data-on` Modifiers
@@ -310,9 +318,9 @@ Modifiers allow you to alter the behavior when events are triggered. (Modifiers 
     | Passive  // * - can only be used with built-in events
     | Capture  // * - can only be used with built-in events
     | Delay of TimeSpan
-    | DelayMs of int  // identical to Delay, but just milliseconds
-    | Debounce of Debounce  // timespan, leading, and notrail
-    | Throttle of Throttle  // timepan, noleading, and trail
+    | DelayMs of int  // identical to Delay, but using milliseconds instead
+    | Debounce of Debounce  // timespan, leading, and notrailing
+    | Throttle of Throttle  // timepan, noleading, and trailing
     | ViewTransition
     | Window
     | Outside
@@ -329,16 +337,7 @@ Elem.div [
 
 Results in:
 ```html
-<div data-on-click__window__debounce.1000ms.leading="$foo = ''"></div>
-```
-
-### [Ds.onLoad : `data-on-load`](https://data-star.dev/reference/attributes#data-on-load)
-
-Runs an expression when the element is loaded into the DOM. **Important:** when patching elements, `ElementPatchMode.Replace` the [Datastar expression](https://data-star.dev/guide/datastar_expressions)
-will be fired a second time, but will not with `ElementPatchMode.Outer`.
-
-```fsharp
-Elem.div [ Ds.onLoad (Ds.get "/moreAgents") ] []
+<div data-on:click__window__debounce.1000ms.leading="$foo = ''"></div>
 ```
 
 ### [Ds.effect : `data-effect`](https://data-star.dev/reference/attributes#data-effect)
@@ -367,12 +366,14 @@ Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Half, onlyOnce = 
 Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Half, onlyOnce = true, throttle = Throttle.With(TimeSpan.FromSeconds(1.0))) ] []
 ```
 
-### [Ds.onSignalPatch | Ds.onSignalPatchFilter: `data-on-signal-patch`](https://data-star.dev/reference/attributes#data-on-signal-change)
+### [Ds.onSignalPatch | Ds.onSignalPatchFilter : `data-on-signal-patch`](https://data-star.dev/reference/attributes#data-on-signal-patch)
 
 Runs an expression any signal changes. This should be used sparingly, as it is cost intensive.
 
 ```fsharp
-Elem.div [ Ds.onAnySignalChange "$show = !$show" ] []
+Elem.div [ Ds.onSignalPatch "$show = !$show" ] []
+
+Elem.div [ Ds.onSignalPatchFilter (SignalsFilter.Include "/foo/") ] []
 ```
 
 ### [Ds.onInterval : `data-on-interval`](https://data-star.dev/reference/attributes#data-on-interval)
@@ -407,7 +408,7 @@ All signals, that do not have an underscore prefix, are sent in the request.
 `@get` will send the signal values as query parameters. All others are sent within a JSON body.
 
 ```fsharp
-Elem.div [ Ds.onLoad (Ds.get "/get") ] []
+Elem.div [ Ds.init (Ds.get "/get") ] []
 
 Elem.button [ Ds.onClick (Ds.post "/post") ] [ Text.raw "Post" ]
 
@@ -450,21 +451,21 @@ Toggles all the signals that start with the prefix. This is useful for toggling 
 Elem.div [ Ds.onEvent (OnEvent.SignalsChanged, (Ds.toggleAll "foo.")) ] []
 ```
 
-### [Ds.ignore | Ds.ignoreThis | Ds.ignoreMorph : `data-star-ignore`](https://data-star.dev/reference/attributes#data-star-ignore)
+### [Ds.ignore | Ds.ignoreSelf | Ds.ignoreMorph : `data-star-ignore`](https://data-star.dev/reference/attributes#data-ignore)
 
 Datastar walks the entire DOM and applies plugins to each element it encounters.
 It’s possible to tell Datastar to ignore an element and its descendants by placing a data-star-ignore attribute on it.
 This can be useful for preventing naming conflicts with third-party libraries.
 
 `Ds.ignore` will force Datastar to ignore the element and all child elements.
-`Ds.ignoreThis` only affects the attribute it is attached to.
+`Ds.ignoreSelf` only affects the attribute it is attached to.
 
 ```fsharp
 Elem.div [ Ds.ignore ] [
     Elem.div [ Ds.text "ignoredAsWell" ] []
 ]
 
-Elem.div [ Ds.ignoreThis ] [
+Elem.div [ Ds.ignoreSelf ] [
     Elem.div [ Ds.text "thisIsNotIgnored" ] []
 ]
 
@@ -487,7 +488,7 @@ Elem.pre [ Ds.jsonSignalsOptions (SignalsFilter.Include "/foo/") ] []
 ## _When to `$`_
 
 You may have noticed in the sample code that the `$` is used in some places, but not others. At first, it might be
-confusing when a `$` is required, but it really isn't all that complicated when you think of it as either being a signal path or an expression.
+confusing when a `$` is required, but it really isn't all that complicated when you think of it as either being a signal path or not.
 
 The `$` symbol is a shorthand to get the value of the signal (e.g. `$count` -> `count.value`), so when the `$` is elided, you are referring to the signal directly.
 [`Ds.bind signalPath`](#dsbind--data-bind) is two-way binding to the signal, so it requires the signal path, no `$`.
@@ -627,15 +628,16 @@ are mirrored with a function with `sse` as their prefix instead of `of`.
 
 ```fsharp
 let handleStream = (fun ctx -> task {
-    do! Response.sseStartResponse ctx
+    do! Response.sseStartResponse ctx  // make sure this is called first; sends the appropriate headers
 
     let mutable counter = 0
 
-    while true do  // all Datastar methods (unless requested otherwise) will throw on ctx.RequestAborted
+    while true do  // all Datastar methods will throw on ctx.RequestAborted
         do! Response.ssePatchSignal ctx (sp"counter") counter
         do! Response.sseHtmlElements ctx ( Elem.pre [ Attr.id "counterId" ] [ Text.raw counter.ToString() ] )
         do! Task.Delay(TimeSpan.FromSeconds 1L, ctx.RequestAborted)
         counter <- counter + 1
+    })
 ```
 
 See the [Streaming example](examples/Streaming) for more.

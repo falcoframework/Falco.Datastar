@@ -35,7 +35,7 @@ let handleIndex: HttpHandler =
                               [ Elem.th [] [ Text.raw "Name" ]
                                 Elem.th [] [ Text.raw "Email" ]
                                 Elem.th [] [ Text.raw "ID" ] ]
-                          Elem.tbody [ Attr.id "agent_rows"; Ds.onLoad (Ds.get "/moreAgents") ] [] ] ] ]
+                          Elem.tbody [ Attr.id "agent_rows"; Ds.onInit (Ds.get "/moreAgents") ] [] ] ] ]
 
     Response.ofHtml html
 
