@@ -40,7 +40,7 @@ let private totalBadAppleFrames = badAppleFrames |> Array.length
 backgroundTask {
     while true do
         currentBadAppleFrame <- (currentBadAppleFrame + 1) % totalBadAppleFrames
-        do! Task.Delay(TimeSpan.FromMilliseconds(50))
+        do! Task.Delay(TimeSpan.FromMilliseconds(50L))
 } |> ignore
 
 let getCurrentBadAppleFrame () = badAppleFrames[currentBadAppleFrame]

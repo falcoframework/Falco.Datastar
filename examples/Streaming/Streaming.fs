@@ -36,7 +36,7 @@ let handleIndex ctx = task {
         Elem.html [] [
             Elem.head [ Attr.title "Streaming" ] [
                 Ds.cdnScript
-                Elem.script [ Attr.type' "module"; Attr.src "datastar-inspector.js" ] []
+                Elem.script [ Attr.type' "module" ] []
             ]
             Elem.body [
                 Ds.signal (SignalPath.userName, user)
@@ -62,8 +62,6 @@ let handleIndex ctx = task {
                 Elem.label [ Attr.for' "streamDisplayGuids" ] [ Text.raw "Viewers" ]
 
                 Elem.div [ Attr.id ElementIds.streamView ] []
-
-                Elem.create "datastar-inspector" [] []
             ]
         ]
     return Response.ofHtml (html (Guid.NewGuid())) ctx
@@ -110,7 +108,7 @@ let handleStream ctx = task {
                     ]
 
             do! Response.sseHtmlElements ctx patch
-            do! Task.Delay (TimeSpan.FromSeconds(10L), ctx.RequestAborted)
+            do! Task.Delay (TimeSpan.FromMilliseconds(50), ctx.RequestAborted)
     finally
         userDisplays.AddOrUpdate (signalUser, UserState.displayBadApple, Func<User, UserState, UserState>(fun _ _ -> UserState.loggedOff)) |> ignore
     return ()

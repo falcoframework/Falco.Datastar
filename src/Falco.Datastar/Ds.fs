@@ -27,11 +27,11 @@ type Ds =
     /// <param name="signalValue">The initial value to set the signal</param>
     /// <param name="ifMissing">Signal is only merged if it doesn't already exist</param>
     /// <returns>Attribute</returns>
-    static member inline signal<'T> (signalPath:SignalPath, signalValue:'T, ?ifMissing) =
-        let zz = JsonSerializerOptions()
+    static member inline signal<'T> (signalPath:SignalPath, signalValue:'T, [<Struct>] ?ifMissing) =
+        let ifMissing' = defaultValueArg ifMissing false
         DsAttr.start "signals"
         |> DsAttr.addSignalPathTarget signalPath
-        |> DsAttr.addModifierNameIf "ifmissing" (defaultArg ifMissing false)
+        |> DsAttr.addModifierNameIf "ifmissing" ifMissing'
         |> DsAttr.addValue (
             match typeof<'T> with
             | t when t = typeof<string> -> "'" + signalValue.ToString() + "'"
@@ -47,10 +47,11 @@ type Ds =
     /// <param name="ifMissing">Signals are only merged if it doesn't already exist</param>
     /// <param name="options">Optional options to be passed to the JSON serializer</param>
     /// <returns>Attribute</returns>
-    static member signals (signals, ?ifMissing, ?options:JsonSerializerOptions) =
-        let options' = defaultArg options JsonSerializerOptions.SignalsDefault
+    static member signals (signals, [<Struct>] ?ifMissing, [<Struct>] ?options:JsonSerializerOptions) =
+        let ifMissing' = defaultValueArg ifMissing false
+        let options' = defaultValueArg options JsonSerializerOptions.SignalsDefault
         DsAttr.start "signals"
-        |> DsAttr.addModifierNameIf "ifmissing" (defaultArg ifMissing false)
+        |> DsAttr.addModifierNameIf "ifmissing" ifMissing'
         |> DsAttr.addValue (HttpUtility.HtmlEncode(JsonSerializer.Serialize (signals, options')))
         |> DsAttr.create
 
@@ -61,7 +62,7 @@ type Ds =
     /// <param name="attributeName">An HTML element attribute</param>
     /// <param name="expression">Expression to be evaluated and assigned to the attribute, https://data-star.dev/guide/datastar_expressions</param>
     /// <returns>Attribute</returns>
-    static member attr' (attributeName, expression) =
+    static member inline attr' (attributeName, expression) =
         DsAttr.create ("attr", targetName = attributeName, value = expression)
 
     /// <summary>
@@ -71,7 +72,7 @@ type Ds =
     /// </summary>
     /// <param name="signalPath">The signal to bind to</param>
     /// <returns>Attribute</returns>
-    static member bind signalPath =
+    static member inline bind signalPath =
         DsAttr.createSp ("bind", signalPath)
 
     /// <summary>
@@ -92,7 +93,7 @@ type Ds =
     /// </summary>
     /// <param name="styleProperty">The style to set, https://www.w3schools.com/cssref/index.php</param>
     /// <param name="propertyValueExpression">Expression to be evaluated and assigned to the style property, https://data-star.dev/guide/datastar_expressions</param>
-    static member style (styleProperty, propertyValueExpression) =
+    static member inline style (styleProperty, propertyValueExpression) =
         DsAttr.create ("style", targetName = styleProperty, value = propertyValueExpression)
 
     /// <summary>
@@ -101,7 +102,7 @@ type Ds =
     /// </summary>
     /// <param name="expression">Expression to be evaluated, https://data-star.dev/guide/datastar_expressions</param>
     /// <returns>Attribute</returns>
-    static member text expression =
+    static member inline text expression =
         DsAttr.create ("text", value = expression)
 
     /// <summary>
@@ -137,7 +138,7 @@ type Ds =
     /// </summary>
     /// <param name="boolExpression">The expression that will be evaluated; if true = the element is visible, https://data-star.dev/guide/datastar_expressions</param>
     /// <returns>Attribute</returns>
-    static member show boolExpression =
+    static member inline show boolExpression =
         DsAttr.create ("show", value = boolExpression)
 
     /// <summary>
@@ -145,7 +146,7 @@ type Ds =
     /// </summary>
     /// <param name="expression">The expression to fire</param>
     /// <returns>Attribute</returns>
-    static member effect (expression:string) =
+    static member inline effect (expression:string) =
         DsAttr.create ("effect", value = expression)
 
     /// <summary>
@@ -177,7 +178,7 @@ type Ds =
     /// https://data-star.dev/reference/attributes#data-ignore
     /// </summary>
     /// <returns>Attribute</returns>
-    static member ignore =
+    static member inline ignore =
         DsAttr.create "ignore"
 
     /// <summary>
@@ -198,14 +199,14 @@ type Ds =
     /// https://data-star.dev/reference/attributes#data-ignore-morph
     /// </summary>
     /// <returns>Attribute</returns>
-    static member ignoreMorph =
+    static member inline ignoreMorph =
         DsAttr.create "ignore-morph"
 
     /// <summary>
     /// Sets the text content of an element to a reactive JSON stringified version of signals. Useful for troubleshooting.
     /// https://data-star.dev/reference/attributes#data-json-signals
     /// </summary>
-    static member jsonSignals =
+    static member inline jsonSignals =
         DsAttr.create "json-signals"
 
     /// <summary>
@@ -214,14 +215,16 @@ type Ds =
     /// </summary>
     /// <param name="signalsFilter">Regex of signal paths to be included and excluded</param>
     /// <param name="terse">Single line output</param>
-    static member jsonSignalsOptions (?signalsFilter:SignalsFilter, ?terse:bool) =
+    static member jsonSignalsOptions ([<Struct>] ?signalsFilter:SignalsFilter, [<Struct>] ?terse:bool) =
+        let signalsFilter' = defaultValueArg signalsFilter SignalsFilter.None
+        let terse' = defaultValueArg terse false
         let addSignalsFilter signalsFilter dsAttr =
             if signalsFilter = SignalsFilter.None
-            then dsAttr |> DsAttr.addValue (signalsFilter |> SignalsFilter.serialize)
+            then dsAttr |> DsAttr.addValue (signalsFilter |> SignalsFilter.Serialize)
             else dsAttr
         DsAttr.start "json-signals"
-        |> DsAttr.addModifierNameIf "terse" (defaultArg terse false)
-        |> addSignalsFilter (defaultArg signalsFilter SignalsFilter.None)
+        |> DsAttr.addModifierNameIf "terse" terse'
+        |> addSignalsFilter signalsFilter'
         |> DsAttr.create
 
     /// <summary>
@@ -232,10 +235,11 @@ type Ds =
     /// <param name="expression">The expression to evaluate when the event is triggered; https://data-star.dev/guide/datastar_expressions</param>
     /// <param name="eventModifiers">To modify the behavior of the event</param>
     /// <returns>Attribute</returns>
-    static member onEvent (eventName, expression, ?eventModifiers:OnEventModifier list) =
+    static member onEvent (eventName, expression, [<Struct>] ?eventModifiers:OnEventModifier list) =
+        let eventModifiers' = defaultValueArg eventModifiers []
         DsAttr.startEvent eventName
         |> (fun dsAttr ->  // event modifiers
-            (defaultArg eventModifiers [])
+            eventModifiers'
             |> List.fold (fun dsAttr eventModifier -> DsAttr.addModifier (DsAttrModifier.OnEventModifier eventModifier) dsAttr) dsAttr
             )
         |> DsAttr.addValue expression
@@ -248,8 +252,8 @@ type Ds =
     /// <param name="expression">The expression to evaluate when the event is triggered; https://data-star.dev/guide/datastar_expressions</param>
     /// <param name="eventModifiers">To modify the behavior of the event</param>
     /// <returns>Attribute</returns>
-    static member onClick (expression, ?eventModifiers) =
-        Ds.onEvent ("click", expression, ?eventModifiers = eventModifiers)
+    static member inline onClick (expression, [<Struct>] ?eventModifiers) =
+        Ds.onEvent ("click", expression, defaultValueArg eventModifiers [])
 
     /// <summary>
     /// Fires the expression when the element is loaded.
@@ -259,10 +263,12 @@ type Ds =
     /// <param name="delayMs">The time to wait before executing the expression in milliseconds; default = 0</param>
     /// <param name="viewTransition">Wrap expression in document.startViewTransition(); default = false</param>
     /// <returns>Attribute</returns>
-    static member onInit (expression, ?delayMs, ?viewTransition) =
+    static member onInit (expression, [<Struct>] ?delayMs, [<Struct>] ?viewTransition) =
+        let delayMs' = delayMs |> ValueOption.map DsAttrModifier.DelayMs
+        let viewTransition' = defaultValueArg viewTransition false
         DsAttr.start "init"
-        |> DsAttr.addModifierOption (delayMs |> Option.map DsAttrModifier.DelayMs)
-        |> DsAttr.addModifierNameIf "viewtransition" (defaultArg viewTransition false)
+        |> DsAttr.addModifierOption delayMs'
+        |> DsAttr.addModifierNameIf "viewtransition" viewTransition'
         |> DsAttr.addValue expression
         |> DsAttr.create
 
@@ -274,10 +280,12 @@ type Ds =
     /// <param name="leading">Execute the first interval immediately; default = false</param>
     /// <param name="viewTransition">Wrap expression in document.startViewTransition(); default = false</param>
     /// <returns>Attribute</returns>
-    static member onInterval (expression, intervalMs, ?leading, ?viewTransition) =
+    static member onInterval (expression, intervalMs, [<Struct>] ?leading, [<Struct>] ?viewTransition) =
+        let viewTransition' = defaultValueArg viewTransition false
+        let leading' = defaultValueArg leading false
         DsAttr.start "on-interval"
-        |> DsAttr.addModifierNameIf "viewtransition" (defaultArg viewTransition false)
-        |> DsAttr.addModifier (DsAttrModifier.DurationMs (intervalMs, (defaultArg leading false)))
+        |> DsAttr.addModifierNameIf "viewtransition" viewTransition'
+        |> DsAttr.addModifier (DsAttrModifier.DurationMs (intervalMs, leading'))
         |> DsAttr.addValue expression
         |> DsAttr.create
 
@@ -290,11 +298,14 @@ type Ds =
     /// <param name="debounce"></param>
     /// <param name="throttle"></param>
     /// <returns>Attribute</returns>
-    static member onSignalPatch (expression, ?delayMs:int, ?debounce:Debounce, ?throttle:Throttle) =
+    static member onSignalPatch (expression, [<Struct>] ?delayMs:int, [<Struct>] ?debounce:Debounce, [<Struct>] ?throttle:Throttle) =
+        let delayMs' = delayMs |> ValueOption.map DsAttrModifier.DelayMs
+        let debounce' = debounce |> ValueOption.map DsAttrModifier.Debounce
+        let throttle' = throttle |> ValueOption.map DsAttrModifier.Throttle
         DsAttr.start "on-signal-patch"
-        |> DsAttr.addModifierOption (delayMs |> Option.map DsAttrModifier.DelayMs)
-        |> DsAttr.addModifierOption (debounce |> Option.map DsAttrModifier.Debounce)
-        |> DsAttr.addModifierOption (throttle |> Option.map DsAttrModifier.Throttle)
+        |> DsAttr.addModifierOption delayMs'
+        |> DsAttr.addModifierOption debounce'
+        |> DsAttr.addModifierOption throttle'
         |> DsAttr.addValue expression
         |> DsAttr.create
 
@@ -306,7 +317,7 @@ type Ds =
     /// <returns>Attribute</returns>
     static member onSignalPatchFilter (signalsFilter:SignalsFilter) =
         DsAttr.start "on-signal-patch-filter"
-        |> DsAttr.addValue (signalsFilter |> SignalsFilter.serialize)
+        |> DsAttr.addValue (signalsFilter |> SignalsFilter.Serialize)
         |> DsAttr.create
 
     /// <summary>
@@ -321,19 +332,24 @@ type Ds =
     /// <param name="throttle"></param>
     /// <param name="viewTransition">Wrap expression in document.startViewTransition(); default = false</param>
     /// <returns>Attribute</returns>
-    static member onIntersect (expression, ?visibility, ?onlyOnce, ?delayMs:int, ?debounce:Debounce, ?throttle:Throttle, ?viewTransition:bool) =
-        DsAttr.start "on-intersect"
-        |> (fun dsAttr ->
+    static member onIntersect (expression, [<Struct>] ?visibility, [<Struct>] ?onlyOnce, [<Struct>] ?delayMs:int, [<Struct>] ?debounce:Debounce, [<Struct>] ?throttle:Throttle, [<Struct>] ?viewTransition:bool) =
+        let delayMs' = delayMs |> ValueOption.map DsAttrModifier.DelayMs
+        let debounce' = debounce |> ValueOption.map DsAttrModifier.Debounce
+        let throttle' = throttle |> ValueOption.map DsAttrModifier.Throttle
+        let onlyOnce' = defaultValueArg onlyOnce false
+        let viewTransition' = defaultValueArg viewTransition false
+        let addModifierVisibility visibility dsAttr =
             match visibility with
-            | Some vis when vis = IntersectsVisibility.Full -> DsAttr.addModifierName "full" dsAttr
-            | Some vis when vis = IntersectsVisibility.Half -> DsAttr.addModifierName "half" dsAttr
+            | ValueSome vis when vis = IntersectsVisibility.Full -> DsAttr.addModifierName "full" dsAttr
+            | ValueSome vis when vis = IntersectsVisibility.Half -> DsAttr.addModifierName "half" dsAttr
             | _ -> dsAttr
-            )
-        |> DsAttr.addModifierNameIf "once" (defaultArg onlyOnce false)
-        |> DsAttr.addModifierNameIf "viewtransition" (defaultArg viewTransition false)
-        |> DsAttr.addModifierOption (delayMs |> Option.map DsAttrModifier.DelayMs)
-        |> DsAttr.addModifierOption (debounce |> Option.map DsAttrModifier.Debounce)
-        |> DsAttr.addModifierOption (throttle |> Option.map DsAttrModifier.Throttle)
+        DsAttr.start "on-intersect"
+        |> addModifierVisibility visibility
+        |> DsAttr.addModifierNameIf "once" onlyOnce'
+        |> DsAttr.addModifierNameIf "viewtransition" viewTransition'
+        |> DsAttr.addModifierOption delayMs'
+        |> DsAttr.addModifierOption debounce'
+        |> DsAttr.addModifierOption throttle'
         |> DsAttr.addValue expression
         |> DsAttr.create
 
@@ -342,16 +358,16 @@ type Ds =
     /// </summary>
     static member private backendAction actionOptions action =
         match (action, actionOptions) with
-        | Get url, None -> $@"@get('{url}')"
-        | Get url, Some options -> $"@get('{url}','{options |> RequestOptions.Serialize}')"
-        | Post url, None -> $@"@post('{url}')"
-        | Post url, Some options -> $"@post('{url}','{options |> RequestOptions.Serialize}')"
-        | Put url, None -> $@"@put('{url}')"
-        | Put url, Some options -> $"@put('{url}','{options |> RequestOptions.Serialize}')"
-        | Patch url, None -> $@"@patch('{url}')"
-        | Patch url, Some options -> $"@patch('{url}','{options |> RequestOptions.Serialize}')"
-        | Delete url, None -> $@"@delete('{url}')"
-        | Delete url, Some options -> $"@delete('{url}','{options |> RequestOptions.Serialize}')"
+        | Get url, ValueNone -> $@"@get('{url}')"
+        | Get url, ValueSome options -> $"@get('{url}',{options |> RequestOptions.Serialize})"
+        | Post url, ValueNone -> $@"@post('{url}')"
+        | Post url, ValueSome options -> $"@post('{url}',{options |> RequestOptions.Serialize})"
+        | Put url, ValueNone -> $@"@put('{url}')"
+        | Put url, ValueSome options -> $"@put('{url}',{options |> RequestOptions.Serialize})"
+        | Patch url, ValueNone -> $@"@patch('{url}')"
+        | Patch url, ValueSome options -> $"@patch('{url}',{options |> RequestOptions.Serialize})"
+        | Delete url, ValueNone -> $@"@delete('{url}')"
+        | Delete url, ValueSome options -> $"@delete('{url}',{options |> RequestOptions.Serialize})"
 
     /// <summary>
     /// Creates a @get action for an expression with options. The action sends a GET request with the given url.
@@ -360,7 +376,7 @@ type Ds =
     /// https://data-star.dev/reference/actions#options
     /// </summary>
     /// <returns>Expression</returns>
-    static member get (url, ?options) =
+    static member get (url, [<Struct>] ?options) =
         Ds.backendAction options (Get url)
 
     /// <summary>
@@ -370,7 +386,7 @@ type Ds =
     /// https://data-star.dev/reference/actions#options
     /// </summary>
     /// <returns>Expression</returns>
-    static member post (url, ?options) =
+    static member post (url, [<Struct>] ?options) =
         Ds.backendAction options (Post url)
 
     /// <summary>
@@ -380,7 +396,7 @@ type Ds =
     /// https://data-star.dev/reference/actions#options
     /// </summary>
     /// <returns>Expression</returns>
-    static member put (url, ?options) =
+    static member put (url, [<Struct>] ?options) =
         Ds.backendAction options (Put url)
 
     /// <summary>
@@ -390,7 +406,7 @@ type Ds =
     /// https://data-star.dev/reference/actions#options
     /// </summary>
     /// <returns>Expression</returns>
-    static member patch (url, ?options) =
+    static member patch (url, [<Struct>] ?options) =
         Ds.backendAction options (Patch url)
 
     /// <summary>
@@ -400,7 +416,7 @@ type Ds =
     /// https://data-star.dev/reference/actions#options
     /// </summary>
     /// <returns>Expression</returns>
-    static member delete (url, ?options) =
+    static member delete (url, [<Struct>] ?options) =
         Ds.backendAction options (Delete url)
 
     /// <summary>
