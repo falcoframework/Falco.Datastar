@@ -152,6 +152,7 @@ Some important notes: Signals defined later in the DOM tree override those defin
 ## _Creating Signals_
 
 Create signals, which are reactive variables that automatically propagate their value to all references of the signal.
+Important: Never use hyphens when naming signals.
 
 ### [Ds.signals / Ds.signal : `data-signals`](https://data-star.dev/reference/attributes#data-signals)
 
@@ -428,7 +429,6 @@ Each request action can also be provided a number of options, explained in depth
 ```fsharp
 Elem.button [ Ds.onClick (Ds.get ("/endpoint",
                                   { RequestOptions.Defaults with
-                                        IncludeLocal = true;
                                         Headers = [ ("X-Csrf-Token", "JImikTbsoCYQ9...") ]
                                         OpenWhenHidden = true }
                                  )) ] [ Text.raw "Push the Button" ]

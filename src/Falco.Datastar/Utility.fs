@@ -2,8 +2,6 @@ namespace Falco.Datastar
 
 open System
 open System.Text
-open System.Text.Json
-open StarFederation.Datastar.FSharp
 
 module internal String =
     let newLines = [| "\r\n"; "\n"; "\r" |]
@@ -23,3 +21,8 @@ module internal Bool =
         match bool with
         | true -> trueThing
         | _ -> falseThing
+
+module Option =
+    let toValueOption = function
+        | Some value -> ValueSome value
+        | None -> ValueNone
