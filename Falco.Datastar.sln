@@ -23,6 +23,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "environment", "environment", "{13C18205-082E-4DED-9AD4-D3001ABDFECA}"
 	ProjectSection(SolutionItems) = preProject
 		global.json = global.json
+		.github\workflows\build.yml = .github\workflows\build.yml
 	EndProjectSection
 EndProject
 Global

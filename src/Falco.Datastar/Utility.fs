@@ -21,3 +21,8 @@ module internal Bool =
         match bool with
         | true -> trueThing
         | _ -> falseThing
+
+module Option =
+    let toValueOption = function
+        | Some value -> ValueSome value
+        | None -> ValueNone
