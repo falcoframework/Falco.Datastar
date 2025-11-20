@@ -96,13 +96,13 @@ type ContentType =
 
 type Retry =
     /// retry on network errors; default
-    | Auto
+    | OnAuto
     /// retries on 4xx and 5xx responses
-    | Error
+    | OnError
     /// retries on all non-204 responses, except redirects
-    | Always
+    | OnAlways
     /// disables retry
-    | Never
+    | OnNever
 
 type RequestCancellation =
     /// cancels existing requests on the same element; default
@@ -173,7 +173,7 @@ type RequestOptions = {
           FilterSignals = SignalsFilter.None
           Headers = []
           OpenWhenHidden = false
-          Retry = Retry.Auto
+          Retry = Retry.OnAuto
           RetryInterval = TimeSpan.FromSeconds(1.0)
           RetryScaler = 2.0
           RetryMaxWait = TimeSpan.FromSeconds(30.0)
