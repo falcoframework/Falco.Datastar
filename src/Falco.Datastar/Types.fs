@@ -18,7 +18,7 @@ type SignalsFilter =
     static member None = { IncludePattern = ValueNone; ExcludePattern = ValueNone }
     static member Include pattern =  { IncludePattern = ValueSome pattern; ExcludePattern = ValueNone }
     static member Exclude pattern =  { IncludePattern = ValueNone; ExcludePattern = ValueSome pattern }
-    static member serialize (signalFilter:SignalsFilter) =
+    static member Serialize (signalFilter:SignalsFilter) =
         if signalFilter = SignalsFilter.None then
             ""
         else
@@ -31,7 +31,7 @@ type SignalsFilter =
                     | _ -> sb
                 let _ =
                     match signalFilter.ExcludePattern with
-                    | ValueSome excludeExp -> sb.Append($"exclude: /{excludeExp}'")
+                    | ValueSome excludeExp -> sb.Append($"exclude: /{excludeExp}/")
                     | _ -> sb
                 sb
                 )
@@ -85,13 +85,53 @@ type BackendAction =
     | Delete of url:string
 
 type ContentType =
+    /// default, filtered signals; default
     | Json
-    | Form of string voption
+    /// sends a custom object instead of the default, filtered signals
+    | CustomJson of obj
+    /// validates inputs of closest form and sends them to the backend
+    | Form
+    /// similar to Form, but specify the form id to send
+    | SelectedForm of StarFederation.Datastar.FSharp.Selector
+
+type Retry =
+    /// retry on network errors; default
+    | Auto
+    /// retries on 4xx and 5xx responses
+    | Error
+    /// retries on all non-204 responses, except redirects
+    | Always
+    /// disables retry
+    | Never
+
+type RequestCancellation =
+    /// cancels existing requests on the same element; default
+    | Auto
+    /// allows concurrent requests
+    | Disabled
+    /// an object name that can be aborted; https://data-star.dev/reference/actions#request-cancellation;
+    /// creator should include '$', e.g. (AbortController "$controller")
+    | AbortController of string
+    with
+    static member Serialize (requestCancellation:RequestCancellation) =
+        match requestCancellation with
+        | Auto -> "auto"
+        | Disabled -> "disabled"
+        | AbortController controller -> controller
+
+type ResponseOverrideMode =
+    | Outer
+    | Inner
+    | Remove
+    | Replace
+    | Prepend
+    | Append
+    | Before
+    | After
 
 /// Request Options for backend action plugins
 /// https://data-star.dev/reference/action_plugins
-type RequestOptions =
-    {
+type RequestOptions = {
       /// The type of content to send. A value of json sends all signals in a JSON request.
       /// A value of form tells the action to look for the closest form to the element on which it is placed
       /// (unless a selector option is provided), perform validation on the form elements,
@@ -101,16 +141,15 @@ type RequestOptions =
       /// Filter object utilizing regular expressions for which signals to send
       FilterSignals: SignalsFilter
 
-      /// Specifies a form to send when the ContentType is set to Form.
-      /// If set to ValueNone, the closest form is used. Defaults to ValueNone.
-      Selector: Selector voption
-
       /// HTTP Headers to send with the request.
-      Headers: (string*string) list
+      Headers: (string * string) list
 
       /// Whether to keep the connection open when the page is hidden. Useful for dashboards
       /// but can cause a drain on battery life and other resources when enabled. Defaults to false.
       OpenWhenHidden: bool
+
+      /// Determines on what to retry; auto, error, always, never
+      Retry: Retry
 
       /// The retry interval in milliseconds. Defaults to 1 second
       RetryInterval: TimeSpan
@@ -125,38 +164,41 @@ type RequestOptions =
       RetryMaxCount: int
 
       /// An AbortSignal object that can be used to cancel the request.
-      /// https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal
-      Abort: obj }
-
+      /// https://data-star.dev/reference/actions#request-cancellation
+      RequestCancellation: RequestCancellation
+      }
+    with
     static member Defaults =
         { ContentType = Json
           FilterSignals = SignalsFilter.None
-          Selector = ValueNone
           Headers = []
           OpenWhenHidden = false
+          Retry = Retry.Auto
           RetryInterval = TimeSpan.FromSeconds(1.0)
           RetryScaler = 2.0
           RetryMaxWait = TimeSpan.FromSeconds(30.0)
           RetryMaxCount = 10
-          Abort = null }
+          RequestCancellation = Auto }
+
+    static member inline With contentType = { RequestOptions.Defaults with ContentType = contentType }
 
     static member internal Serialize (backendActionOptions:RequestOptions) =
         let jsonObject = JsonObject()
+
         match backendActionOptions.ContentType with
         | _ when backendActionOptions.ContentType = RequestOptions.Defaults.ContentType -> ()
-        | Json -> jsonObject.Add("contentType", "json")
-        | Form formSelector ->
+        | Form -> jsonObject.Add("contentType", "form")
+        | SelectedForm formSelector ->
             jsonObject.Add("contentType", "form")
-            match formSelector with
-            | ValueNone -> ()
-            | ValueSome formSelector' -> jsonObject.Add("selector", formSelector')
+            jsonObject.Add("selector", formSelector)
+        | CustomJson customJson ->
+            let serializedOverride = JsonSerializer.Serialize(customJson, JsonSerializerOptions.SignalsDefault)
+            jsonObject.Add("contentType", "json")
+            jsonObject.Add("override", serializedOverride)
+        | Json -> jsonObject.Add("contentType", "json")
 
-        if backendActionOptions.FilterSignals <> SignalsFilter.None then
-            jsonObject.Add("includeLocal", backendActionOptions.FilterSignals |> SignalsFilter.serialize |> JsonNode.Parse)
-
-        if backendActionOptions.Selector.IsValueSome then
-            let selector = backendActionOptions.Selector |> ValueOption.get
-            jsonObject.Add("selector", selector)
+        if backendActionOptions.FilterSignals <> RequestOptions.Defaults.FilterSignals then
+            jsonObject.Add("filterSignals", backendActionOptions.FilterSignals |> SignalsFilter.Serialize |> JsonNode.Parse)
 
         if backendActionOptions.Headers.Length > 0 then
             let headerObject = JsonObject()
@@ -178,8 +220,9 @@ type RequestOptions =
         if backendActionOptions.RetryMaxCount <> RequestOptions.Defaults.RetryMaxCount then
             jsonObject.Add("retryMaxCount", backendActionOptions.RetryMaxCount)
 
-        if backendActionOptions.Abort <> null then
-            jsonObject.Add("abort", JsonSerializer.Serialize backendActionOptions.Abort)
+        if backendActionOptions.RequestCancellation <> RequestOptions.Defaults.RequestCancellation then
+            let requestCancellation = backendActionOptions.RequestCancellation |> RequestCancellation.Serialize
+            jsonObject.Add("requestCancellation", requestCancellation)
 
         let options = JsonSerializerOptions()
         options.WriteIndented <- false
@@ -191,7 +234,7 @@ type Debounce =
       NoTrailing:bool }
     static member inline With (timeSpan:TimeSpan, ?leading:bool, ?noTrailing:bool) =
         { TimeSpan = timeSpan; Leading = (defaultArg leading false); NoTrailing = (defaultArg noTrailing false) }
-    static member inline With (milliseconds:int, ?leading:bool, ?noTrailing:bool) =
+    static member inline With (milliseconds:float, ?leading:bool, ?noTrailing:bool) =
         { TimeSpan = TimeSpan.FromMilliseconds(milliseconds); Leading = (defaultArg leading false); NoTrailing = (defaultArg noTrailing false) }
 
 type Throttle =
@@ -200,7 +243,7 @@ type Throttle =
       Trailing:bool }
     static member inline With (timeSpan:TimeSpan, ?noLeading:bool, ?trailing:bool) =
         { TimeSpan = timeSpan; NoLeading = (defaultArg noLeading false); Trailing = (defaultArg trailing false) }
-    static member inline With (milliseconds:int, ?noLeading:bool, ?trailing:bool) =
+    static member inline With (milliseconds:float, ?noLeading:bool, ?trailing:bool) =
         { TimeSpan = TimeSpan.FromMilliseconds(milliseconds); NoLeading = (defaultArg noLeading false); Trailing = (defaultArg trailing false) }
 
 type OnEventModifier =
@@ -311,8 +354,8 @@ type DsAttr =
 
     static member inline addModifierOption modifierOption dsAttr =
         match modifierOption with
-        | Some modifier -> DsAttr.addModifier modifier dsAttr
-        | None -> dsAttr
+        | ValueSome modifier -> DsAttr.addModifier modifier dsAttr
+        | ValueNone -> dsAttr
 
     static member inline addModifierName modifierName =
         DsAttr.addModifier { Name = modifierName; Tags = [] }

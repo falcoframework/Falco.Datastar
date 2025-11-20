@@ -2,8 +2,6 @@ namespace Falco.Datastar
 
 open System
 open System.Text
-open System.Text.Json
-open StarFederation.Datastar.FSharp
 
 module internal String =
     let newLines = [| "\r\n"; "\n"; "\r" |]
