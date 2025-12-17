@@ -215,7 +215,7 @@ type Ds =
     /// <param name="terse">Single line output</param>
     static member jsonSignalsOptions (?signalsFilter:SignalsFilter, ?terse:bool) =
         let addSignalsFilter signalsFilter dsAttr =
-            if signalsFilter = SignalsFilter.None
+            if signalsFilter <> SignalsFilter.None
             then dsAttr |> DsAttr.addValue (signalsFilter |> SignalsFilter.Serialize)
             else dsAttr
         DsAttr.start "json-signals"

@@ -25,15 +25,13 @@ type SignalsFilter =
             StringBuilder()
             |> _.Append("{ ")
             |> (fun sb ->
-                let _ =
-                    match signalFilter.IncludePattern with
-                    | ValueSome includeExp -> sb.Append($"include: /{includeExp}/")
-                    | _ -> sb
-                let _ =
-                    match signalFilter.ExcludePattern with
-                    | ValueSome excludeExp -> sb.Append($"exclude: /{excludeExp}/")
-                    | _ -> sb
-                sb
+                let filters = seq {
+                    if (signalFilter.IncludePattern <> ValueNone) then
+                        signalFilter.IncludePattern |> ValueOption.get |> (fun incStr -> $"include: /{incStr}/")
+                    if (signalFilter.ExcludePattern <> ValueNone) then
+                        signalFilter.ExcludePattern |> ValueOption.get |> (fun excStr -> $"exclude: /{excStr}/")
+                    }
+                sb.AppendJoin(',', filters)
                 )
             |> _.Append(" }")
             |> _.ToString()
