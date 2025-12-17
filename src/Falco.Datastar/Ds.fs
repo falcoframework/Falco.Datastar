@@ -10,7 +10,7 @@ open StarFederation.Datastar.FSharp
 [<AbstractClass; Sealed; RequireQualifiedAccess>]
 type Ds =
     static member cdnSrc =
-        @"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"
+        @"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.7/bundles/datastar.js"
 
     /// <summary>
     /// Shorthand for `Elem.script [ Attr.type' "module"; Attr.src cdnSrc ] []`
