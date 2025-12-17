@@ -10,7 +10,7 @@ open StarFederation.Datastar.FSharp
 [<AbstractClass; Sealed; RequireQualifiedAccess>]
 type Ds =
     static member cdnSrc =
-        @"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.6/bundles/datastar.js"
+        @"https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.7/bundles/datastar.js"
 
     /// <summary>
     /// Shorthand for `Elem.script [ Attr.type' "module"; Attr.src cdnSrc ] []`
@@ -215,7 +215,7 @@ type Ds =
     /// <param name="terse">Single line output</param>
     static member jsonSignalsOptions (?signalsFilter:SignalsFilter, ?terse:bool) =
         let addSignalsFilter signalsFilter dsAttr =
-            if signalsFilter = SignalsFilter.None
+            if signalsFilter <> SignalsFilter.None
             then dsAttr |> DsAttr.addValue (signalsFilter |> SignalsFilter.Serialize)
             else dsAttr
         DsAttr.start "json-signals"

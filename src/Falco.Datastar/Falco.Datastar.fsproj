@@ -18,8 +18,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <!-- NuGet config -->
-    <PackageId>Falco.Datastar</PackageId>
-    <PackageVersion>1.2.0</PackageVersion>
+    <PackageId>SpiralOSS.Falco.Datastar</PackageId>
+    <PackageVersion>1.2.1</PackageVersion>
     <PackageTags>fsharp;web;falco;falco-sharp;data-star</PackageTags>
     <PackageProjectUrl>https://github.com/falcoframework/Falco.Datastar</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
