@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>Falco.Datastar</AssemblyName>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
 
     <!-- General info -->
     <Description>Datastar Bindings for the Falco web toolkit.</Description>
@@ -37,7 +37,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Falco" Version="5.0.0" />
+    <PackageReference Include="Falco" Version="5.1.0" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
     <PackageReference Include="StarFederation.Datastar.FSharp" Version="1.1.3" />
     <PackageReference Update="FSharp.Core" Version="6.0.0"/>
