@@ -313,17 +313,19 @@ type Ds =
     /// https://data-star.dev/reference/attributes#data-on-intersect
     /// </summary>
     /// <param name="expression">Expression to run when element is intersected</param>
-    /// <param name="visibility">Sets it to trigger only if the element is half or fully viewed</param>
+    /// <param name="visibility">Sets it to trigger only if the element is exited, or half or fully viewed</param>
     /// <param name="onlyOnce">Only triggers the event once</param>
     /// <param name="delayMs">The time to wait before executing the expression in milliseconds; default = 0</param>
-    /// <param name="debounce"></param>
-    /// <param name="throttle"></param>
+    /// <param name="debounce">Debounce the event listener</param>
+    /// <param name="throttle">Throttle the event listener</param>
     /// <param name="viewTransition">Wrap expression in document.startViewTransition(); default = false</param>
+    /// <param name="threshold">Triggers when the element is visible by a certain percentage (0-100)</param>
     /// <returns>Attribute</returns>
-    static member onIntersect (expression, ?visibility, ?onlyOnce, ?delayMs:int, ?debounce:Debounce, ?throttle:Throttle, ?viewTransition:bool) =
+    static member onIntersect (expression, ?visibility, ?onlyOnce, ?delayMs:int, ?debounce:Debounce, ?throttle:Throttle, ?viewTransition:bool, ?threshold:int) =
         DsAttr.start "on-intersect"
         |> (fun dsAttr ->
             match visibility with
+            | Some vis when vis = IntersectsVisibility.Exit -> DsAttr.addModifierName "exit" dsAttr
             | Some vis when vis = IntersectsVisibility.Full -> DsAttr.addModifierName "full" dsAttr
             | Some vis when vis = IntersectsVisibility.Half -> DsAttr.addModifierName "half" dsAttr
             | _ -> dsAttr
@@ -333,6 +335,7 @@ type Ds =
         |> DsAttr.addModifierOption (delayMs |> Option.toValueOption |> ValueOption.map DsAttrModifier.DelayMs)
         |> DsAttr.addModifierOption (debounce |> Option.toValueOption |> ValueOption.map DsAttrModifier.Debounce)
         |> DsAttr.addModifierOption (throttle |> Option.toValueOption |> ValueOption.map DsAttrModifier.Throttle)
+        |> DsAttr.addModifierOption (threshold |> Option.toValueOption |> ValueOption.map (fun vv -> DsAttrModifier.Threshold (Math.Clamp(vv, 0, 100))))
         |> DsAttr.addValue expression
         |> DsAttr.create
 

@@ -60,3 +60,19 @@ module DsTests =
         let filterFiles : SignalsFilter = { IncludePattern = ValueSome "files$"; ExcludePattern = ValueSome "^files" }
         renderAttr (Ds.jsonSignalsOptions (filterFiles, terse = true))
         |> should equal """<div data-json-signals__terse="{ include: /files$/,exclude: /^files/ }"></div>"""
+
+    [<Fact>]
+    let ``Ds.onIntersect No Options`` () =
+        renderAttr (Ds.onIntersect "@get('/hello')")
+        |> should equal """<div data-on-intersect="@get('/hello')"></div>"""
+
+    [<Fact>]
+    let ``Ds.onIntersect Threshold`` () =
+        renderAttr (Ds.onIntersect ("@get('/hello')", threshold=50))
+        |> should equal """<div data-on-intersect__threshold.50="@get('/hello')"></div>"""
+
+    [<Fact>]
+    let ``Ds.style`` () =
+        renderAttr (Ds.style ("display", "$hiding && 'none'"))
+        |> should equal """<div data-style:display="$hiding && 'none'"></div>"""
+

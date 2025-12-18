@@ -70,6 +70,8 @@ module Selector =
     let sel = Selector.create
 
 type IntersectsVisibility =
+    /// Triggers on exit
+    | Exit
     /// Triggers when half of the element is visible
     | Half
     /// Triggers when the full element is visible
@@ -305,6 +307,10 @@ type DsAttrModifier =
             if debounce.Leading then "leading"
             if debounce.NoTrailing then "notrailing"
           ] }
+
+    static member inline Threshold (threshold:int) =
+        { Name = "threshold"
+          Tags = [ $"{threshold}" ] }
 
     static member inline OnEventModifier (onEventModifier:OnEventModifier) =
         match onEventModifier with
