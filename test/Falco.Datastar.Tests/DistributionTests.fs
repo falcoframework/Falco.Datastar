@@ -19,10 +19,10 @@ module DistributionTests =
 
     /// How many of the given fragments a long run of generated texts reached
     let private reachedOf (fragments: string list) (draws: int) =
-        let random = Random 12345
+        let generator = Generator.ofSeed 12345
         let seen = HashSet<string>()
         for _ in 1 .. draws do
-            let text = Fragments.hostileText random
+            let text: string = Fragments.hostileText generator
             for fragment in fragments do
                 if text.Contains fragment then
                     seen.Add fragment |> ignore
@@ -53,10 +53,10 @@ module DistributionTests =
     [<Fact>]
     let ``ordinary text is still the common case, so the dangerous ones are found among real input`` () =
         // If almost everything were punctuation, a green run would say nothing about a page built from real text
-        let random = Random 999
+        let generator = Generator.ofSeed 999
         let ordinaryDraws =
             [ for _ in 1 .. 3000 do
-                let text = Fragments.fragment random
+                let text = Fragments.fragment generator
                 if Fragments.ordinary |> Array.contains text then 1 else 0 ]
             |> List.sum
         ordinaryDraws |> should be (greaterThan 300)
@@ -64,28 +64,28 @@ module DistributionTests =
     [<Fact>]
     let ``the same seed always produces the same text, so a failure replays`` () =
         // This is what makes the seed in a failure message worth anything
-        let first = Random 1234 |> fun r -> [ for _ in 1 .. 50 -> Fragments.hostileText r ]
-        let second = Random 1234 |> fun r -> [ for _ in 1 .. 50 -> Fragments.hostileText r ]
+        let first = Generator.ofSeed 1234 |> fun g -> [ for _ in 1 .. 50 -> Fragments.hostileText g ]
+        let second = Generator.ofSeed 1234 |> fun g -> [ for _ in 1 .. 50 -> Fragments.hostileText g ]
         second |> should equal first
-        let other = Random 5678 |> fun r -> [ for _ in 1 .. 50 -> Fragments.hostileText r ]
+        let other = Generator.ofSeed 5678 |> fun g -> [ for _ in 1 .. 50 -> Fragments.hostileText g ]
         // A different seed has to give different text, or the seed never reaches the generator at all
         other |> should not' (equal first)
 
     [<Fact>]
     let ``a long run produces many different texts, not a few shapes repeated`` () =
         // A generator that keeps returning the same handful proves nothing however many draws it makes
-        let random = Random 4242
+        let generator = Generator.ofSeed 4242
         let texts =
-            [ for _ in 1 .. 1000 -> Fragments.hostileText random ] |> Set.ofList
+            [ for _ in 1 .. 1000 -> Fragments.hostileText generator ] |> Set.ofList
         texts.Count |> should be (greaterThan 300)
 
     [<Fact>]
     let ``signal names are a mix of accepted and refused, so the name rules are tested from both sides`` () =
-        Dst.run "signal names are a mix of accepted and refused" (fun random ->
+        Dst.run "signal names are a mix of accepted and refused" (fun generator ->
             let mutable accepted = 0
             let mutable refused = 0
             for _ in 1 .. 600 do
-                match Signal.tryCreate<int> SignalScope.Server (Fragments.signalName random) with
+                match Signal.tryCreate<int> SignalScope.Server (Fragments.signalName generator) with
                 | Ok _ -> accepted <- accepted + 1
                 | Error _ -> refused <- refused + 1
             accepted |> should be (greaterThan 20)

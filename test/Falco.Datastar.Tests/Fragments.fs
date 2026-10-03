@@ -78,35 +78,35 @@ module Fragments =
 
     /// Picks one fragment from one group, chosen by weight. Every group is reachable, so a case that a parser
     /// mishandles is generated rather than merely possible.
-    let fragment (random: Random) =
+    let fragment (generator: Generator) =
         let total = groups |> List.sumBy snd
-        let mutable roll = random.Next total
+        let mutable roll = Generator.intBelow total generator
         let mutable chosen = ""
         // The groups are walked in order, spending the roll as it goes, so a group's share of the range is its weight
         for (fragments, weight) in groups do
             if chosen = "" then
                 if roll < weight then
-                    chosen <- fragments.[random.Next fragments.Length]
+                    chosen <- fragments.[Generator.intBelow fragments.Length generator]
                 else
                     roll <- roll - weight
         chosen
 
     /// Text of zero to a few fragments. Length is weighted short, because the interesting cases are usually short
     /// and a long run of them rarely finds anything new.
-    let hostileText (random: Random) =
+    let hostileText (generator: Generator) =
         let howMany =
-            match random.Next 10 with
+            match Generator.intBelow 10 generator with
             | 0 | 1 -> 0
             | 2 | 3 | 4 | 5 | 6 -> 1
             | 7 | 8 -> 2
-            | _ -> 3 + random.Next 3
-        String.Join("", [ for _ in 1 .. howMany -> fragment random ])
+            | _ -> 3 + Generator.intBelow 3 generator
+        String.Join("", [ for _ in 1 .. howMany -> fragment generator ])
 
     /// A signal name, built from the pieces the name rules care about, so that some are accepted and some are not.
-    let signalName (random: Random) =
+    let signalName (generator: Generator) =
         let pieces = [| "a"; "x"; "count"; "menuOpen"; "form"; "firstName"; "1"; "0"; "_"; "-"; "."; "$"; " "; "A" |]
-        let howMany = 1 + random.Next 4
-        String.Join("", [ for _ in 1 .. howMany -> pieces.[random.Next pieces.Length] ])
+        let howMany = Generator.intBetween 1 5 generator
+        String.Join("", [ for _ in 1 .. howMany -> pieces.[Generator.intBelow pieces.Length generator] ])
 
     /// Every fragment in every group, so a test can assert each one is reachable rather than only that some are
     let everyFragment: string array =

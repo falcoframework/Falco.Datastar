@@ -1006,6 +1006,9 @@ unweighted mix produces mostly harmless letters and the dangerous cases are then
 groups a long run actually reaches, so a change to the weights shows up as a number rather than as a run that quietly
 stopped covering anything.
 
+The randomness comes from a generator written out in the test project rather than from `System.Random`, so a seed means
+the same case on any runtime and after any upgrade, and the values a seed gives are pinned by a test.
+
 **Mutation tests** make a small, deliberate mistake in the source and run the whole suite. A failing test proves the suite catches that mistake; a mistake that survives is a test to write. This is what keeps a green suite honest, because a suite can pass while the code it covers is wrong.
 
 ```shell

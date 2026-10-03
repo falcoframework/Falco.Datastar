@@ -160,13 +160,16 @@ module ExprTests =
 
     [<Fact>]
     let ``Every name that is accepted is read by Datastar as the name that an expression uses`` () =
-        Dst.run "Every name that is accepted" (fun random ->
-            let alphabet = "abcXYZ019_.-$ "
+        Dst.run "Every name that is accepted" (fun generator ->
+            // A longer name than the shared generator draws, so that a deep dotted path is covered as well as a short one
+            let alphabet = [| "a"; "b"; "c"; "X"; "Y"; "Z"; "0"; "1"; "9"; "_"; "-"; "."; "$"; " " |]
             let scopes = [| SignalScope.Browser; SignalScope.Server; SignalScope.RocketComponent |]
             let mutable accepted = 0
             for _ in 1 .. 1200 do
-                let name = String(Array.init (random.Next(1, 9)) (fun _ -> alphabet.[random.Next alphabet.Length]))
-                match Signal.tryCreate<int> (Dst.pick random scopes) name with
+                let name =
+                    [ for _ in 1 .. Dst.intBetween 1 9 generator -> alphabet.[Dst.intBelow alphabet.Length generator] ]
+                    |> String.concat ""
+                match Signal.tryCreate<int> (Dst.pick generator scopes) name with
                 | Error _ -> ()
                 | Ok signal ->
                     accepted <- accepted + 1

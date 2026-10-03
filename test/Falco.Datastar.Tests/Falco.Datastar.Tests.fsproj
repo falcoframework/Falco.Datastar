@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Generator.fs" />
+    <Compile Include="GeneratorTests.fs" />
     <Compile Include="Dst.fs" />
     <Compile Include="TestHelpers.fs" />
     <Compile Include="Fragments.fs" />

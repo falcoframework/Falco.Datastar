@@ -1,10 +1,14 @@
 name: mutation
 
-# Proves that the test suite catches the mistakes this library could plausibly make. See test/mutation.fsx.
+# Proves that the test suite catches the mistakes this library could plausibly make. See test/mutation.
 #
 # It rewrites a line of src for each mutant and runs the whole suite, so it is slow and it must not run alongside
-# anything else that builds the repository. It only runs when someone starts it: Actions tab, mutation, Run workflow.
-# The unit tests are what run on every push.
+# anything else that builds the repository.
+#
+# It runs on a schedule as well as on demand. The reason is that "every mutant is killed" is a claim about the tests as
+# well as the source, and it rots quietly: delete a test that was the only thing catching a mutant, or add one that is
+# too weak to catch it, and nothing fails until someone remembers to click Run workflow. A scheduled run turns that into
+# a red build instead of a sentence nobody has checked in a year.
 on:
   workflow_dispatch:
     inputs:
@@ -12,6 +16,10 @@ on:
         description: "Only run the mutants whose name contains this text"
         required: false
         default: ""
+  schedule:
+    # Weekly, early in the morning UTC. Not on the hour, because every scheduled workflow on the planet fires at :00 and
+    # the runners queue for them.
+    - cron: "37 4 * * 1"
 
 permissions:
   contents: read
@@ -19,37 +27,48 @@ permissions:
 jobs:
   mutation:
     runs-on: ubuntu-latest
+    # A full run mutates the source about ninety times and builds and tests after each one, which takes a while.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
-      # The script runs dotnet test against net10.0 only, because the code under test is the same for every target.
+      # The program runs dotnet test against net10.0 only, because the code under test is the same for every target.
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
 
-      # The tree has to be clean, because the script checks that it can put every file back afterwards
+      # It rewrites files in src, so it needs the tree exactly as committed, otherwise it cannot put it back.
       - name: Check the tree is clean
         run: git diff --exit-code
+
+      - name: Check the mutant list against the source
+        # Fails if a mutant no longer finds its text, so the run below does not spend twenty minutes on a list that is stale
+        run: |
+          dotnet build test/mutation -c Release
+          dotnet run --project test/mutation -c Release --no-build -- check
 
       - name: Build the library
         run: dotnet build src/Falco.Datastar -c Release
 
-      # The filter goes through the environment rather than into the script text, so a value with a quote or a
-      # semicolon in it is one argument and not shell syntax. dst.yml does the same.
+      # The filter goes through the environment rather than into the command, so a value with a quote or a semicolon in
+      # it is one argument and not shell syntax. dst.yml does the same.
       - name: Mutate
         env:
           DST_MUTATION_FILTER: ${{ inputs.filter }}
         run: |
-          dotnet build test/mutation -c Release
           if [ -n "$DST_MUTATION_FILTER" ]; then
             dotnet run --project test/mutation -c Release --no-build -- "$DST_MUTATION_FILTER"
           else
             dotnet run --project test/mutation -c Release --no-build
           fi
 
-      # A mutant that survives means the tree was left mutated, and the job failed, so the next one would start wrong
+      # A run that is killed cannot restore the source, so a backup left behind means the tree may still be mutated and
+      # the next job would start from it. Cleaning up here means a cancelled run does not poison the following one.
+      - name: Put the source back
+        if: always()
+        run: dotnet run --project test/mutation -c Release --no-build -- clean
+
       - name: Check the source was put back
         run: |
           if [ -n "$(ls src/Falco.Datastar/*.mutation-backup 2>/dev/null)" ]; then

@@ -18,49 +18,55 @@ module DstManifestTests =
     let private limit = 1024 * 1024
     let private buffer = 8192
 
-    // A random manifest, made the way Rocket's publishRocketManifests makes one
+    // A generator manifest, made the way Rocket's publishRocketManifests makes one
 
     let private codecs = [| "string"; "number"; "boolean"; "date"; "json"; "js"; "binary"; "array"; "tuple"; "object"; "oneOf"; "custom"; "hologram" |]
 
-    let private randomValue (random:Random) : JsonNode =
-        match random.Next 6 with
+    let private randomValue (generator:Generator) : JsonNode =
+        match Dst.intBelow 6 generator with
         | 0 -> JsonValue.Create "text"
-        | 1 -> JsonValue.Create (random.Next 1000)
-        | 2 -> JsonValue.Create (random.Next 2 = 0)
+        | 1 -> JsonValue.Create (Dst.intBelow 100 generator)
+        | 2 -> JsonValue.Create (Dst.intBelow 2 generator = 0)
         | 3 -> JsonArray(JsonValue.Create 1, JsonValue.Create "b")
         | 4 -> JsonObject([ KeyValuePair("a", JsonValue.Create 1 :> JsonNode) ])
         | _ -> null
 
-    let private randomProp (random:Random) (index:int) : JsonNode =
+    let private randomProp (generator:Generator) (index:int) : JsonNode =
         let prop = JsonObject()
         prop["name"] <- JsonValue.Create $"prop{index}"
         prop["attribute"] <- JsonValue.Create $"prop-{index}"
-        prop["type"] <- JsonValue.Create (Dst.pick random codecs)
+        prop["type"] <- JsonValue.Create (Dst.pick generator codecs)
         // A codec that has no default leaves the key out
-        if random.Next 5 > 0 then prop["default"] <- randomValue random
-        prop["required"] <- JsonValue.Create (random.Next 2 = 0)
-        if random.Next 3 = 0 then prop["values"] <- JsonArray(JsonValue.Create "a", JsonValue.Create "b")
-        if random.Next 3 = 0 then prop["docs"] <- JsonObject([ KeyValuePair("description", JsonValue.Create "d" :> JsonNode) ])
+        if Dst.intBelow 5 generator > 0 then prop["default"] <- randomValue generator
+        prop["required"] <- JsonValue.Create (Dst.intBelow 2 generator = 0)
+        if Dst.intBelow 3 generator = 0 then prop["values"] <- JsonArray(JsonValue.Create "a", JsonValue.Create "b")
+        if Dst.intBelow 3 generator = 0 then prop["docs"] <- JsonObject([ KeyValuePair("description", JsonValue.Create "d" :> JsonNode) ])
         prop :> JsonNode
 
-    let private randomComponent (random:Random) (index:int) : JsonNode =
+    let private randomComponent (generator:Generator) (index:int) : JsonNode =
         let component' = JsonObject()
         component'["tag"] <- JsonValue.Create $"my-component-{index}"
-        component'["props"] <- JsonArray(Array.init (random.Next 6) (randomProp random))
-        component'["slots"] <- JsonArray(Array.init (random.Next 3) (fun i -> JsonObject([ KeyValuePair("name", JsonValue.Create $"slot{i}" :> JsonNode) ]) :> JsonNode))
-        component'["events"] <- JsonArray(Array.init (random.Next 3) (fun i ->
+        component'["props"] <- JsonArray(Array.init (Dst.intBelow 6 generator) (randomProp generator))
+        component'["slots"] <- JsonArray(Array.init (Dst.intBelow 3 generator) (fun i -> JsonObject([ KeyValuePair("name", JsonValue.Create $"slot{i}" :> JsonNode) ]) :> JsonNode))
+        component'["events"] <- JsonArray(Array.init (Dst.intBelow 3 generator) (fun i ->
             let event = JsonObject()
             event["name"] <- JsonValue.Create $"event{i}"
-            event["kind"] <- JsonValue.Create (Dst.pick random [| "event"; "custom-event"; "other" |])
-            if random.Next 2 = 0 then event["bubbles"] <- JsonValue.Create true
+            event["kind"] <- JsonValue.Create (Dst.pick generator [| "event"; "custom-event"; "other" |])
+            if Dst.intBelow 2 generator = 0 then event["bubbles"] <- JsonValue.Create true
             event :> JsonNode))
         component' :> JsonNode
 
-    let private randomManifest (random:Random) : JsonObject =
+    let private randomManifest (generator:Generator) : JsonObject =
         let manifest = JsonObject()
         manifest["version"] <- JsonValue.Create 1
         manifest["generatedAt"] <- JsonValue.Create "2026-09-21T17:42:04.838Z"
-        manifest["components"] <- JsonArray(Array.init (random.Next 12) (randomComponent random))
+        // NOT Array.init length (fun i -> randomComponent generator i). F# does not promise argument evaluation order,
+        // so that would advance the generator in whatever order the compiler chose, and the manifest a seed produces
+        // would differ between a debug and a release build. A fold says what the order is.
+        let components =
+            [ for index in 0 .. Dst.intBelow 12 generator - 1 -> randomComponent generator index :> JsonNode ]
+            |> List.toArray
+        manifest["components"] <- JsonArray components
         manifest
 
     /// The JSON of an element without the white space it was written with
@@ -98,14 +104,14 @@ module DstManifestTests =
                 if not (isNull array.[index]) then yield! nodes array.[index] ]
         | _ -> []
 
-    let private mutate (random:Random) (root:JsonObject) =
-        for _ in 1 .. random.Next(1, 4) do
+    let private mutate (generator:Generator) (root:JsonObject) =
+        for _ in 1 .. Dst.intBetween 1 4 generator do
             match nodes root with
             | [] -> ()
             | all ->
-                let parent, key, index = Dst.pick random (Array.ofList all)
-                let replacement = randomValue random
-                match parent, random.Next 4 with
+                let parent, key, index = Dst.pick generator (Array.ofList all)
+                let replacement = randomValue generator
+                match parent, Dst.intBelow 4 generator with
                 | (:? JsonObject as object), 0 -> object.Remove key |> ignore
                 | (:? JsonObject as object), _ -> object[key] <- replacement
                 | (:? JsonArray as array), 0 -> array.RemoveAt index
@@ -113,21 +119,21 @@ module DstManifestTests =
                 | _ -> ()
 
     /// Damage the text itself: cut it short, or put a character in that does not belong
-    let private damage (random:Random) (text:string) =
-        match random.Next 4 with
-        | 0 when text.Length > 1 -> text.Substring(0, random.Next text.Length)
-        | 1 -> text.Insert(random.Next(text.Length + 1), string (Dst.pick random [| '"'; '{'; '}'; '\\'; '\u0000'; '\ud800'; ',' |]))
+    let private damage (generator:Generator) (text:string) =
+        match Dst.intBelow 4 generator with
+        | 0 when text.Length > 1 -> text.Substring(0, Dst.intBelow text.Length generator)
+        | 1 -> text.Insert(Dst.intBetween 0 (text.Length + 1) generator, string (Dst.pick generator [| '"'; '{'; '}'; '\\'; '\u0000'; '\ud800'; ',' |]))
         | _ -> text
 
     [<Fact>]
     let ``RocketManifest.parse gives a result for a manifest that has been changed or damaged, and never throws`` () =
-        Dst.run "RocketManifest.parse gives a result" (fun random ->
+        Dst.run "RocketManifest.parse gives a result" (fun generator ->
             let mutable errors = 0
             let mutable oks = 0
             for _ in 1 .. 300 do
-                let manifest = randomManifest random
-                if random.Next 3 > 0 then mutate random manifest
-                let text = manifest.ToJsonString() |> damage random
+                let manifest = randomManifest generator
+                if Dst.intBelow 3 generator > 0 then mutate generator manifest
+                let text = manifest.ToJsonString() |> damage generator
                 match RocketManifest.parse text with
                 | Ok _ -> oks <- oks + 1
                 | Error _ -> errors <- errors + 1
@@ -137,9 +143,9 @@ module DstManifestTests =
 
     [<Fact>]
     let ``The same manifest gives the same result however it is written`` () =
-        Dst.run "The same manifest gives the same result" (fun random ->
+        Dst.run "The same manifest gives the same result" (fun generator ->
             for _ in 1 .. 100 do
-                let manifest = randomManifest random
+                let manifest = randomManifest generator
                 let compact = manifest.ToJsonString()
                 let indented = manifest.ToJsonString(Text.Json.JsonSerializerOptions(WriteIndented = true))
                 describe (RocketManifest.parse compact) |> should equal (describe (RocketManifest.parse indented))
@@ -155,7 +161,7 @@ module DstManifestTests =
         | CancelledAt of position:int
 
     /// A body that is given out in chunks of random sizes, and that can fail or be cancelled at a byte. It counts the bytes that were read.
-    type private ChaosStream(data:byte array, random:Random, fault:Fault, cancel:CancellationTokenSource) =
+    type private ChaosStream(data:byte array, generator:Generator, fault:Fault, cancel:CancellationTokenSource) =
         inherit Stream()
         let mutable position = 0
         member _.BytesRead = position
@@ -177,7 +183,7 @@ module DstManifestTests =
                 token.ThrowIfCancellationRequested()
             | _ -> ()
             // Some reads give one byte, some give a whole buffer, and the last one gives nothing
-            let size = min (min destination.Length (data.Length - position)) (Dst.pick random [| 1; 2; 7; 100; 1000; buffer |])
+            let size = min (min destination.Length (data.Length - position)) (Dst.pick generator [| 1; 2; 7; 100; 1000; buffer |])
             data.AsSpan(position, size).CopyTo destination.Span
             position <- position + size
             size
@@ -185,8 +191,8 @@ module DstManifestTests =
         override this.ReadAsync (destination:Memory<byte>, token:CancellationToken) = ValueTask<int>(this.Next (destination, token))
 
     /// A valid manifest, padded with spaces at the end to the length asked for when it is shorter
-    let private manifestOfLength (random:Random) (length:int) =
-        let text = (randomManifest random).ToJsonString()
+    let private manifestOfLength (generator:Generator) (length:int) =
+        let text = (randomManifest generator).ToJsonString()
         let bytes = Encoding.UTF8.GetBytes text
         match bytes.Length >= length with
         | true -> bytes
@@ -194,17 +200,17 @@ module DstManifestTests =
 
     [<Fact>]
     let ``Request.getRocketManifests gives the same result however the body arrives, and stops reading at the limit`` () =
-        Dst.run "Request.getRocketManifests gives the same result" (fun random ->
+        Dst.run "Request.getRocketManifests gives the same result" (fun generator ->
             for _ in 1 .. 25 do
                 // Mostly small bodies, and some at the edge of the limit
                 let body =
-                    match random.Next 4 with
-                    | 0 -> manifestOfLength random (limit - random.Next 3)
-                    | 1 -> manifestOfLength random (limit + random.Next 3)
-                    | 2 -> manifestOfLength random (limit * 3)
-                    | _ -> manifestOfLength random 0
+                    match Dst.intBelow 4 generator with
+                    | 0 -> manifestOfLength generator (limit - Dst.intBelow 3 generator)
+                    | 1 -> manifestOfLength generator (limit + Dst.intBelow 3 generator)
+                    | 2 -> manifestOfLength generator (limit * 3)
+                    | _ -> manifestOfLength generator 0
                 let ctx = DefaultHttpContext()
-                let stream = new ChaosStream(body, random, NoFault, null)
+                let stream = new ChaosStream(body, generator, NoFault, null)
                 ctx.Request.Body <- stream
                 let result = (Request.getRocketManifests ctx).GetAwaiter().GetResult()
                 match body.Length > limit with
@@ -218,18 +224,18 @@ module DstManifestTests =
 
     [<Fact>]
     let ``Request.getRocketManifests gives an error for a failed or cancelled connection, and never a result for half a body`` () =
-        Dst.run "Request.getRocketManifests gives an error" (fun random ->
+        Dst.run "Request.getRocketManifests gives an error" (fun generator ->
             let mutable failures = 0
             let mutable cancellations = 0
             for _ in 1 .. 25 do
-                let body = manifestOfLength random (random.Next(200, 60000))
+                let body = manifestOfLength generator (Dst.intBetween 200 60000 generator)
                 // A fault before the end of the body is always reached, because the reader needs all of it
-                let at = random.Next body.Length
-                let fault = Dst.pick random [| IoFailureAt at; CancelledAt at |]
+                let at = Dst.intBelow body.Length generator
+                let fault = Dst.pick generator [| IoFailureAt at; CancelledAt at |]
                 use cancel = new CancellationTokenSource()
                 let ctx = DefaultHttpContext()
                 ctx.RequestAborted <- cancel.Token
-                ctx.Request.Body <- new ChaosStream(body, random, fault, cancel)
+                ctx.Request.Body <- new ChaosStream(body, generator, fault, cancel)
                 let result = (Request.getRocketManifests ctx).GetAwaiter().GetResult()
                 match fault with
                 | IoFailureAt _ ->

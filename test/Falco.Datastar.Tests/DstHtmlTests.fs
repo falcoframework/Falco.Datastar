@@ -24,20 +24,20 @@ module DstHtmlTests =
            "__"; "_"; "-"; "."; ":"; "$"; "{"; "}"; "("; ")"; ";"; "`"; " "; " "; "é"; "😀"; "</script>"; "<!--"; "-->"
            "\" onmouseover=\""; "' onmouseover='"; "><img src=x onerror=alert(1)>"; "/>"; "javascript:" |]
 
-    let private hostile (random:Random) =
-        String.Concat(Array.init (random.Next(0, 6)) (fun _ -> Dst.pick random pieces))
+    let private hostile (generator:Generator) =
+        String.Concat(Array.init (Dst.intBetween 0 6 generator) (fun _ -> Dst.pick generator pieces))
 
     let private safeNames = [| "a"; "card"; "my-class"; "aria-label"; "is.active"; "x1"; "b_c" |]
 
     /// Mostly a name that is fine, and sometimes a hostile one, so that both the accepted and the refused paths run
-    let private nameLike (random:Random) =
-        match random.Next 100 < 65 with
-        | true -> Dst.pick random safeNames
-        | false -> hostile random
+    let private nameLike (generator:Generator) =
+        match Dst.intBelow 100 generator < 65 with
+        | true -> Dst.pick generator safeNames
+        | false -> hostile generator
 
     /// A signal path, or nothing when the SDK refuses the name
-    let private signalPath (random:Random) =
-        try Some (sp (nameLike random)) with _ -> None
+    let private signalPath (generator:Generator) =
+        try Some (sp (nameLike generator)) with _ -> None
 
     let private keyOf attribute =
         match attribute with
@@ -62,7 +62,7 @@ module DstHtmlTests =
 
     // Cases that build attributes. Each returns the attributes, and a check of what the attribute stands for.
 
-    let private attributeCases : (string * (Random -> XmlAttribute list * Check)) list =
+    let private attributeCases : (string * (Generator -> XmlAttribute list * Check)) list =
         [ "Ds.class'", fun r -> [ Ds.class' (nameLike r, "$a") ], nothingMore
           "Ds.attr'", fun r -> [ Ds.attr' (nameLike r, "$a") ], nothingMore
           "Ds.style", fun r -> [ Ds.style (nameLike r, "'x'") ], nothingMore
@@ -133,14 +133,14 @@ module DstHtmlTests =
               let text = hostile r
               [ Rocket.propJson ("settings", {| a = text |}) ], (fun parsed -> (jsonOf parsed.["settings"]).RootElement.GetProperty("a").GetString() |> should equal text)
           "Rocket.propNumber, propBool, propDate, propBin", fun r ->
-              [ Rocket.propNumber ("count", r.NextDouble() * 1000.0)
-                Rocket.propBool ("open", r.Next 2 = 0)
-                Rocket.propDate ("when", DateTimeOffset.FromUnixTimeSeconds(int64 (r.Next())))
-                Rocket.propBin ("payload", Array.init (r.Next 20) (fun _ -> byte (r.Next 256))) ], nothingMore ]
+              [ Rocket.propNumber ("count", Generator.fraction r * 1000.0)
+                Rocket.propBool ("open", Dst.intBelow 2 r = 0)
+                Rocket.propDate ("when", DateTimeOffset.FromUnixTimeSeconds(int64 (Dst.intBelow 2_000_000_000 r)))
+                Rocket.propBin ("payload", Array.init (Dst.intBelow 20 r) (fun _ -> byte (Dst.intBelow 256 r))) ], nothingMore ]
 
     // Cases that build a template element
 
-    let private nodeCases : (string * (Random -> XmlNode * Check)) list =
+    let private nodeCases : (string * (Generator -> XmlNode * Check)) list =
         [ "Rocket.templateIf", fun r ->
               let text = hostile r
               Rocket.templateIf (text, []), (fun parsed -> parsed.["data-if"] |> should equal (asAttributeText text))
@@ -187,14 +187,14 @@ module DstHtmlTests =
 
     [<Fact>]
     let ``Every attribute or element built from hostile text is refused, or is read by an HTML parser as exactly what was generated`` () =
-        Dst.run "Every attribute or element built from hostile text" (fun random ->
+        Dst.run "Every attribute or element built from hostile text" (fun generator ->
             let mutable accepted = 0
             let mutable refused = 0
             for _ in 1 .. 400 do
                 // Attributes: one to three of them on one div. A name that two of them share is dropped by the parser, so those cases are skipped.
-                let chosen = Array.init (random.Next(1, 4)) (fun _ -> Dst.pick random (Array.ofList attributeCases))
+                let chosen = Array.init (Dst.intBetween 1 4 generator) (fun _ -> Dst.pick generator (Array.ofList attributeCases))
                 try
-                    let built = chosen |> Array.map (fun (name, build) -> name, build random)
+                    let built = chosen |> Array.map (fun (name, build) -> name, build generator)
                     let attributes = built |> Array.collect (fun (_, (attributes, _)) -> Array.ofList attributes) |> List.ofArray
                     let keys = attributes |> List.map (fun attribute -> (keyOf attribute).ToLowerInvariant())
                     if List.length keys = List.length (List.distinct keys) && not attributes.IsEmpty then
@@ -208,9 +208,9 @@ module DstHtmlTests =
                 with :? ArgumentException -> refused <- refused + 1
 
                 // Elements
-                let name, build = Dst.pick random (Array.ofList nodeCases)
+                let name, build = Dst.pick generator (Array.ofList nodeCases)
                 try
-                    let node, check = build random
+                    let node, check = build generator
                     try
                         assertShape node check
                     with error ->

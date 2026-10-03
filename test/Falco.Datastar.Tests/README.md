@@ -68,7 +68,17 @@ DST_SEED=417 dotnet test test/Falco.Datastar.Tests -c Release     # only seed 41
 ```
 
 A failure message names the seed and the command that replays it, and `DstHtmlTests` also prints the HTML that broke the rule.
-The **dst** workflow in the Actions tab runs many seeds on GitHub. It only runs when you start it.
+The **dst** workflow in the Actions tab runs many seeds on GitHub, weekly and on demand.
+
+### The generator, and why it is not System.Random
+
+`Generator.fs` is SplitMix64, written out rather than taken from the framework. .NET does not promise to keep
+`Random`'s algorithm, so a seed that reproduces a failure today may not after a runtime upgrade, and every replay in an
+issue tracker quietly becomes a lie. The algorithm is here instead, so a seed means the same case today and in two years.
+
+`GeneratorTests` pins the values a seed gives, because a generator that silently changes is worse than one that is
+obviously broken. It also checks that a small bound still reaches every value in it and that the values are spread
+rather than clustered, both of which a broken generator passes by returning one value forever.
 
 When a simulation finds a bug, fix it, and add a plain test for that case, so that the fix does not depend on a seed reaching it.
 

@@ -88,15 +88,9 @@ module PropertyTests =
 
     // These three rules only say something when the name is one the library accepts. FsCheck's default string generator
     // produces random bytes, and only a handful of names in a thousand survive the rules, so a property written against
-    // it would assert nothing on most runs. So these build their names from an alphabet of the pieces the rules care
-    // about, where many names are accepted and many are refused, and use the project's own seeded generator so that a
-    // failure replays exactly. Each one counts what it accepted and fails when there were too few, because otherwise a
-    // generator that produced nothing usable would look like a pass.
-    let private nameAlphabet = [| "a"; "x"; "count"; "menuOpen"; "form"; "firstName"; "1"; "0"; "_"; "-"; "."; "$"; " "; "A" |]
-
-    let private aSignalName (random: Random) =
-        let parts = random.Next(1, 5)
-        String.Join("", [ for _ in 1 .. parts -> nameAlphabet.[random.Next nameAlphabet.Length] ])
+    // it would assert nothing on most runs. So these draw their names from `Fragments.signalName`, which is built from
+    // the pieces the name rules care about, and each one counts what it accepted and fails when there were too few.
+    // Otherwise a generator that produced nothing usable would look like a pass.
 
     let private scopes = [| SignalScope.Browser; SignalScope.Server; SignalScope.RocketComponent |]
 
@@ -104,11 +98,11 @@ module PropertyTests =
     /// This measures that, so that a change to the generator or to the rules cannot quietly make them vacuous.
     [<Fact>]
     let ``the signal name generator produces names that are both accepted and refused`` () =
-        let random = Random 1
+        let generator = Generator.ofSeed 1
         let mutable accepted = 0
         let mutable refused = 0
         for _ in 1 .. 600 do
-            let name = aSignalName random
+            let name = Fragments.signalName generator
             match Signal.tryCreate<int> SignalScope.Server name with
             | Ok _ -> accepted <- accepted + 1
             | Error _ -> refused <- refused + 1
@@ -118,10 +112,10 @@ module PropertyTests =
 
     [<Fact>]
     let ``Every signal name that is accepted is read by Datastar as the name an expression uses`` () =
-        Dst.run "Every signal name that is accepted" (fun random ->
+        Dst.run "Every signal name that is accepted" (fun generator ->
             let mutable accepted = 0
             for _ in 1 .. 600 do
-                let name = aSignalName random
+                let name = Fragments.signalName generator
                 for scope in scopes do
                     match Signal.tryCreate<int> scope name with
                     | Error _ -> ()
@@ -136,10 +130,10 @@ module PropertyTests =
 
     [<Fact>]
     let ``A signal name that is refused always says what to write`` () =
-        Dst.run "A signal name that is refused" (fun random ->
+        Dst.run "A signal name that is refused" (fun generator ->
             let mutable refused = 0
             for _ in 1 .. 600 do
-                let name = aSignalName random
+                let name = Fragments.signalName generator
                 match Signal.tryCreate<int> SignalScope.Server name with
                 | Ok _ -> ()
                 | Error error ->
@@ -152,10 +146,10 @@ module PropertyTests =
 
     [<Fact>]
     let ``A browser signal is written with an underscore and a server signal is not`` () =
-        Dst.run "A browser signal is written with an underscore" (fun random ->
+        Dst.run "A browser signal is written with an underscore" (fun generator ->
             let mutable accepted = 0
             for _ in 1 .. 600 do
-                let name = aSignalName random
+                let name = Fragments.signalName generator
                 match Signal.tryCreate<int> SignalScope.Browser name, Signal.tryCreate<int> SignalScope.Server name with
                 | Ok browser, _ ->
                     accepted <- accepted + 1

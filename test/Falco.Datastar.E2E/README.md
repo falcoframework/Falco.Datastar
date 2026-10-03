@@ -30,6 +30,7 @@ dotnet test test/Falco.Datastar.E2E -c Release --no-build
 ```
 
 If Chromium is already installed, set `E2E_CHROMIUM_PATH` to it and skip the install step.
+The install step needs `pwsh`; without it, `npx playwright install chromium` puts the browser in the same place.
 
 The tests need internet access, because the pages load Datastar from the jsDelivr CDN, as the library's own `Ds.cdnScript` does.
 The example is built the first time the tests start it, which takes a while.

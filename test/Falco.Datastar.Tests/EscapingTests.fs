@@ -75,18 +75,18 @@ module EscapingTests =
             value.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r")
                  .Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;")
         let alphabet = [| 'a'; 'Z'; '0'; ' '; '/'; '?'; '='; '\\'; '\''; '\n'; '\r'; '&'; '<'; '>'; '"'; '$'; '@'; '(' ; ')'; ';'; '\u2028'; 'é' |]
-        Dst.run "Escaping gives the same result" (fun random ->
+        Dst.run "Escaping gives the same result" (fun generator ->
             for _ in 1 .. 120 do
-                let text = String(Array.init (random.Next(0, 24)) (fun _ -> alphabet.[random.Next alphabet.Length]))
+                let text = String(Array.init (Dst.intBetween 0 24 generator) (fun _ -> alphabet.[Dst.intBelow alphabet.Length generator]))
                 Expr.toString (Expr.string text) |> should equal ("'" + reference text + "'")
                 Ds.get text |> should equal ("@get('" + reference text + "')"))
 
     [<Fact>]
     let ``Text that goes through the escaping is read back as the same text by a browser and a JavaScript parser`` () =
         let alphabet = [| 'a'; 'Z'; '0'; ' '; '\t'; '/'; '='; '\\'; '\''; '\n'; '\r'; '&'; '<'; '>'; '"'; '$'; '@'; ';'; '\u2028'; 'é'; '#'; '%'; '`' |]
-        Dst.run "Text that goes through the escaping" (fun random ->
+        Dst.run "Text that goes through the escaping" (fun generator ->
             for _ in 1 .. 200 do
-                let text = String(Array.init (random.Next(0, 30)) (fun _ -> alphabet.[random.Next alphabet.Length]))
+                let text = String(Array.init (Dst.intBetween 0 30 generator) (fun _ -> alphabet.[Dst.intBelow alphabet.Length generator]))
                 let rendered = renderAttr (Ds.text (Expr.string text))
                 // <div data-text="VALUE"></div>
                 let value = rendered.Substring("<div data-text=\"".Length, rendered.Length - "<div data-text=\"".Length - "\"></div>".Length)
@@ -98,9 +98,9 @@ module EscapingTests =
     [<Fact>]
     let ``A URL goes through the same escaping, so a browser reads it back as written`` () =
         let alphabet = [| 'a'; '/'; '?'; '='; '&'; '\''; '"'; '<'; ')'; '\\'; ' ' |]
-        Dst.run "A URL goes through the same escaping" (fun random ->
+        Dst.run "A URL goes through the same escaping" (fun generator ->
             for _ in 1 .. 80 do
-                let url = String(Array.init (random.Next(1, 20)) (fun _ -> alphabet.[random.Next alphabet.Length]))
+                let url = String(Array.init (Dst.intBetween 1 20 generator) (fun _ -> alphabet.[Dst.intBelow alphabet.Length generator]))
                 let action = Ds.get url
                 // @get('URL')
                 let literal = action.Substring("@get(".Length, action.Length - "@get(".Length - ")".Length)
