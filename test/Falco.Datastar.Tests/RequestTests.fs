@@ -1,5 +1,6 @@
 namespace Falco.Datastar.Tests
 
+open System
 open System.IO
 open System.Text
 open Falco.Datastar
@@ -44,6 +45,8 @@ module RequestTests =
 
     [<Fact>]
     let ``Request.getSignals reads a DELETE from the query string`` () =
+        // This is why the library depends on StarFederation.Datastar.FSharp 1.4.0. The SDK only reads the `datastar` query
+        // parameter for a DELETE from version 1.3.0 on. If a dependency bump ever brings an older SDK back, this fails.
         readTyped "DELETE" queryWithSignals ""
         |> should equal (ValueSome { A = 1 })
 
@@ -51,3 +54,26 @@ module RequestTests =
     let ``Request.getSignals reads a POST from the body`` () =
         readTyped "POST" "" """{"a":1}"""
         |> should equal (ValueSome { A = 1 })
+
+    // SignalPath.getSignalFromJson returns ValueNone when the path is not in the document, which is not an error.
+    // A value that is there but cannot be read as 'T is a different matter, and is raised so that the caller sees it.
+
+    [<Fact>]
+    let ``SignalPath.getSignalFromJson gives nothing when a part of the path is not there`` () =
+        use document = System.Text.Json.JsonDocument.Parse """{"a":1,"form":{"name":"Ada"}}"""
+        SignalPath.getSignalFromJson<int> (SignalPath.sp "missing") document |> should equal (ValueNone : int voption)
+        // form.name is text, so reading it as an int is a type that does not match, which is not the same as a path that is not there
+        SignalPath.getSignalFromJson<int> (SignalPath.sp "nope.name") document |> should equal (ValueNone : int voption)
+
+    [<Fact>]
+    let ``SignalPath.getSignalFromJson reads a value that is there`` () =
+        use document = System.Text.Json.JsonDocument.Parse """{"a":1,"form":{"name":"Ada"}}"""
+        SignalPath.getSignalFromJson<int> (SignalPath.sp "a") document |> should equal (ValueSome 1)
+        SignalPath.getSignalFromJson<string> (SignalPath.sp "form.name") document |> should equal (ValueSome "Ada")
+
+    [<Fact>]
+    let ``SignalPath.getSignalFromJson raises when the value cannot be read as the type`` () =
+        // Before, this returned nothing, so a caller could not tell a missing signal from one of the wrong type
+        use document = System.Text.Json.JsonDocument.Parse """{"count":"not a number"}"""
+        // System.Text.Json raises InvalidOperationException for a token of the wrong kind
+        Assert.ThrowsAny<Exception>(fun () -> SignalPath.getSignalFromJson<int> (SignalPath.sp "count") document |> ignore)

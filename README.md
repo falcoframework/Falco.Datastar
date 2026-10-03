@@ -397,7 +397,7 @@ Example: setting the innerText of a `<div>` to a value that is updated by a serv
 ### [Ds.bind : `data-bind`](https://data-star.dev/reference/attributes#data-bind)
 
 Creates a two-way binding from a signal to the "value" of an HTML "input" element. Can be placed on any HTML element on which data can be input or choices
-selected (e.g. `input`, `textarea`, `select`, `checkbox` and `radio` elements, as well as web components. Although not necessary, you can find the `switch` statement in the
+selected (e.g. `input`, `textarea` and `select` elements, `input` with `type` of `checkbox` or `radio`, and web components. Although not necessary, you can find the `switch` statement in the
 [source](https://github.com/starfederation/datastar/blob/v1.0.4/library/src/plugins/attributes/bind.ts) to see how signals are translated).
 The signal will be created if it does not already exist. And the type of the signal is preserved during binding; if an element's value changes,
 the signal value is automatically converted to match the original (see the [documentation](https://data-star.dev/reference/attributes#data-bind) for an example.)
@@ -406,12 +406,16 @@ the signal value is automatically converted to match the original (see the [docu
 Elem.input [ Attr.type' "text"; Ds.bind "firstName" ]
 ```
 
+An `input` with `type="file"` is a special case: Datastar puts the chosen files into one signal as a list of `{ name; contents; mime }`, where `contents` is a base64 data URI. It does not create the `{name}`, `{name}Names` and `{name}Mimes` signals that older versions did.
+
 For custom elements and web components, `Ds.bindProp` binds a signal to a named property of the element. You can also list the events that copy the property back into the signal.
-`Ds.bindEvent` changes only the events, and needs at least one, because with none Datastar never syncs the signal. Property names come out in kebab-case, because the HTML parser lowercases attribute names, and Datastar turns them back into camelCase.
+`Ds.bindEvent` changes only the events, and needs at least one, because with none Datastar never syncs the signal.
+
+Write the property name in kebab-case, because the HTML parser lowercases attribute names. Datastar only removes the hyphens from what it reads, so a name with a capital letter in it is not turned back into camelCase: `"isOn"` would be read as the property `ison`, and the component has no such property.
 
 ```fsharp
 Elem.create "my-slider" [ Ds.bindProp (sp"volume", "value", [ "change" ]) ] []
-Elem.create "my-toggle" [ Ds.bindProp (sp"isOn", "isOn") ] []
+Elem.create "my-toggle" [ Ds.bindProp (sp"isOn", "is-on") ] []
 Elem.create "my-input" [ Ds.bindEvent (sp"query", "input", [ "change" ]) ] []
 ```
 
@@ -468,7 +472,7 @@ Ds.class' ("x\" onmouseover=\"y", "$a")  // ArgumentException: ... it contains '
 
 ### [Ds.style : `data-style`](https://data-star.dev/reference/attributes#data-style)
 
-Sets the value of inline CSS styles on an element based on an expression, and keeps them in sync. Write the property name in kebab-case, as CSS does (`background-color`), because the HTML parser lowercases attribute names and Datastar passes the name on as it reads it.
+Sets the value of inline CSS styles on an element based on an expression, and keeps them in sync. Write the property name in kebab-case, as CSS spells it (`background-color`), because the HTML parser lowercases attribute names and Datastar passes the name on as it reads it.
 
 ```fsharp
 Elem.div [ Ds.style ("background-color", "$usingRed ? 'red' : 'blue'") ] [ Text.raw "Red or blue" ]
@@ -738,6 +742,15 @@ Evaluates an expression without subscribing to the signals it reads. Use it in `
 Elem.div [ Ds.effect $"""$last = {Ds.peek "$count"}""" ] []
 ```
 
+### Ds.expression
+
+Joins several expressions into one, separated by `; `. Datastar reads a semicolon as the end of a statement, so this is how a line of code becomes several statements.
+The [typed layer](#signals-expressions-and-statements-in-f) does this for you with [`Stmt.all`](#signals-expressions-and-statements-in-f), which is preferred where it fits.
+
+```fsharp
+Ds.expression [ "$_menuOpen = !$_menuOpen"; "$_count = 0" ]   // $_menuOpen = !$_menuOpen ; $_count = 0
+```
+
 ### [Ds.nonce : `data-nonce`](https://data-star.dev/reference/security#csp-mode)
 
 Datastar runs the expressions in your `data-*` attributes with `Function`, which a Content Security Policy blocks unless the policy allows `unsafe-eval`.
@@ -762,7 +775,7 @@ Elem.html [ Ds.nonce nonce ] [
 CSP mode does not make Datastar expressions safe to use with untrusted content, because Datastar does not check or clean the expressions in your attributes.
 Pass user values through signals. Do not put them in the text of an expression. Sanitize any HTML that users can provide.
 Datastar also works with Trusted Types: it creates a policy named `datastar`, so a policy with `trusted-types datastar; require-trusted-types-for 'script'` allows it.
-If you use an aliased Datastar script, the attribute carries the alias too, for example `data-star-nonce`. Setting `Constants.dataSlugPrefix <- "data-star"` makes `Ds.nonce` write that name.
+If you use an aliased Datastar script, the attribute carries the alias too, for example `data-star-nonce`. Setting `Constants.dataSlugPrefix <- "data-star"` makes `Ds.nonce` write that name, and it must match the alias the bundle was built with, because that is what Datastar reads.
 
 ### `Ds.safariStreamingFix`
 
@@ -842,7 +855,7 @@ Each helper writes the format its codec reads:
 | `Rocket.propNumber` | `number` | any number type, with the invariant culture (`1.5`, never `1,5`) |
 | `Rocket.propBool` | `bool` | `true` or `false`, always written, because a missing attribute means the prop's default, which might be true |
 | `Rocket.propDate` | `date` | UTC ISO 8601 with milliseconds, like `Date.toISOString()` |
-| `Rocket.propJson` | `json`, `array`, `object`, `tuple`, `oneOf` | camelCase JSON, or JSON made with the options you pass |
+| `Rocket.propJson` | `json`, `array`, `object`, `tuple`, `oneOf`, and `js` | camelCase JSON, or JSON made with the options you pass |
 | `Rocket.propBin` | `bin` | base64 |
 
 The attribute name is the prop name converted the way Rocket [converts it](https://github.com/starfederation/datastar/blob/v1.0.4/library/src/utils/text.ts): `maxCount` becomes `max-count`, `innerHTML` becomes `inner-html`, and `pos3d` becomes `pos-3-d`.
@@ -973,8 +986,13 @@ This reads the manifest only. Generating F# code from it is left to a separate t
 
 ## Testing
 
-The unit tests include simulations. They build attributes from hostile text and read the HTML back with a real HTML5 parser, fuzz the Rocket manifest reader, and feed `Request.getRocketManifests` a body that arrives in odd chunks, fails or is cancelled.
-Every random test takes its randomness from a seed, so a failure can be replayed exactly:
+The unit tests check a rule that has to hold for every input, not only for the examples. There are four kinds, and each answers a different question.
+
+**Named tests** pin the output of every helper, so a change to what it writes is a failing test rather than a surprise in a browser. The `Response` tests drive a real `HttpContext` and read back the bytes, because the Server Sent Events a browser receives are the only thing that matters about them.
+
+**Property tests** state a rule and let [FsCheck](https://fscheck.github.io/) look for an input that breaks it. They cover the rules the library's own reasoning rests on: that text in a signal comes back as the same text, that a signal name the library accepts is the name Datastar reads, and that an expression keeps the parentheses that stop a neighbouring operator from reaching into it.
+
+**Simulation tests** build attributes from hostile text and read the HTML back with a real HTML5 parser, fuzz the Rocket manifest reader, and feed `Request.getRocketManifests` a body that arrives in odd chunks, fails or is cancelled. Every random test takes its randomness from a seed, so a failure can be replayed exactly:
 
 ```shell
 dotnet test test/Falco.Datastar.Tests -c Release                    # seeds 1 to 25, the same every time
@@ -982,7 +1000,19 @@ DST_SEEDS=2000 dotnet test test/Falco.Datastar.Tests -c Release     # seeds 1 to
 DST_SEED=417 dotnet test test/Falco.Datastar.Tests -c Release       # only seed 417, to replay a failure
 ```
 
-`test/Falco.Datastar.E2E` has browser tests that run only when you start them. See the READMEs in [the unit tests](https://github.com/falcoframework/Falco.Datastar/tree/main/test/Falco.Datastar.Tests) and [the browser tests](https://github.com/falcoframework/Falco.Datastar/tree/main/test/Falco.Datastar.E2E).
+The hostile text is built from fragments grouped by what they attack — text that ends an attribute, text that closes the
+element, text that ends a JavaScript string, the characters a parser rewrites — and each group is weighted, because an
+unweighted mix produces mostly harmless letters and the dangerous cases are then almost never drawn. Tests measure which
+groups a long run actually reaches, so a change to the weights shows up as a number rather than as a run that quietly
+stopped covering anything.
+
+**Mutation tests** make a small, deliberate mistake in the source and run the whole suite. A failing test proves the suite catches that mistake; a mistake that survives is a test to write. This is what keeps a green suite honest, because a suite can pass while the code it covers is wrong.
+
+```shell
+dotnet run --project test/mutation          # every mutant; a survivor exits non-zero and names the test to write
+```
+
+`test/Falco.Datastar.E2E` has browser tests that check a real Chromium, running Datastar 1.0.4, does what the text the library writes says it should. They load Datastar from a CDN, so they need internet access and they take longer than the unit tests; the **e2e** workflow in the Actions tab runs them. See the READMEs in [the unit tests](https://github.com/falcoframework/Falco.Datastar/tree/main/test/Falco.Datastar.Tests) and [the browser tests](https://github.com/falcoframework/Falco.Datastar/tree/main/test/Falco.Datastar.E2E).
 
 ## _When to `$`_
 

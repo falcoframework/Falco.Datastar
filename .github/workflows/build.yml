@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -25,18 +25,56 @@ jobs:
             9.0.x
             10.0.x
 
+      # The solution covers the library, the tests and every example, so building it is what catches an example that no
+      # longer compiles. It also catches a project path in the solution that does not match the folder on disk, which is
+      # a build that fails on Linux and passes on Windows.
       - name: Restore
-        run: dotnet restore src/Falco.Datastar
+        run: dotnet restore Falco.Datastar.sln
 
       - name: Build
-        run: dotnet build src/Falco.Datastar -c Release --no-restore
+        run: dotnet build Falco.Datastar.sln -c Release --no-restore
 
       - name: Test
-        run: dotnet test test/Falco.Datastar.Tests -c Release
+        run: dotnet test test/Falco.Datastar.Tests -c Release --no-build
 
-      # The examples are not part of the solution build on Linux, so build each one here.
-      - name: Build the examples
+      # A library with warnings is not finished. The library itself treats them as errors, and this catches them
+      # anywhere else, such as in the tests and the examples.
+      #
+      # The project's own policy is that a NuGet advisory about a dependency is a warning and not a failure: see
+      # WarningsNotAsErrors in src/Falco.Datastar/Falco.Datastar.fsproj. NuGet replays those advisories on every build,
+      # not only on restore, so a gate on every warning would turn red on the day an advisory is published, with no
+      # change to this repository. They are listed here so they are reported and not swallowed, and not failed on.
+      - name: Check for warnings
         run: |
-          for project in examples/*/*.fsproj; do
-            dotnet build "$project" -c Release
+          set -o pipefail
+          dotnet build Falco.Datastar.sln -c Release --no-incremental 2>&1 | tee build.log
+          # The advisory warnings the project deliberately allows. Everything else is a failure.
+          if grep -E "warning [A-Z]+[0-9]+" build.log | grep -vE "warning NU19(01|02|03|04)"; then
+            echo "::error::the build produced warnings"
+            exit 1
+          fi
+          echo "no warnings other than the advisories the project allows"
+
+      # Packing proves the package can be built and is well formed, which is checked here on every change so a release
+      # is never the thing that finds out. It publishes nothing: the package lands in packages/ and is thrown away with
+      # the runner. How this library reaches NuGet is the maintainer's business, not this workflow's.
+      - name: Pack
+        run: dotnet pack src/Falco.Datastar -c Release --no-build -o packages
+
+      # The contents are inside the .nupkg, which is a zip, so the entries have to be read out of it rather than
+      # looked for on disk. A package that is missing its README or its icon still packs, and that is only visible here.
+      - name: Check the package contents
+        run: |
+          set -euo pipefail
+          package=$(ls packages/Falco.Datastar.*.nupkg | grep -v symbols | head -1)
+          echo "checking $package"
+          unzip -l "$package" > package.txt
+          for expected in Falco.Datastar.nuspec README.md icon.png \
+                          lib/net8.0/Falco.Datastar.dll lib/net8.0/Falco.Datastar.xml \
+                          lib/net9.0/Falco.Datastar.dll lib/net10.0/Falco.Datastar.dll; do
+            if ! grep -qF "$expected" package.txt; then
+              echo "::error::$expected is missing from the package"
+              exit 1
+            fi
+            echo "found $expected"
           done

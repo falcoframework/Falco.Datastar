@@ -1,6 +1,7 @@
 namespace Falco.Datastar.Tests
 
 open System
+open System.Web
 open Falco.Datastar
 open Falco.Markup
 open FsUnit.Xunit
@@ -118,6 +119,29 @@ module EscapingTests =
     [<Fact>]
     let ``A line break in a signals filter is written as an escape, because a literal cannot contain one`` () =
         SignalsFilter.Serialize (SignalsFilter.Include "a\nb\r") |> should equal @"{ include: /a\nb\r/ }"
+
+    // U+2028 and U+2029 are line separators that a regular expression literal can hold, but a JavaScript string cannot:
+    // JavaScript reads a line separator as the end of a string, so one in a filter would end the expression early.
+    [<Fact>]
+    let ``A line separator in a signals filter is written as an escape, because it ends a JavaScript string`` () =
+        SignalsFilter.Serialize (SignalsFilter.Include "a\u2028b") |> should equal @"{ include: /a\u2028b/ }"
+        SignalsFilter.Serialize (SignalsFilter.Include "a\u2029b") |> should equal @"{ include: /a\u2029b/ }"
+
+    [<Fact>]
+    let ``A line separator in a signals filter never reaches the page as itself`` () =
+        // A browser decodes the attribute and Datastar evaluates it, so an unescaped separator would end the expression
+        let prefix = "<div data-on-signal-patch-filter=\""
+        let suffix = "\"></div>"
+        for separator in [ '\u2028'; '\u2029' ] do
+            let rendered = renderAttr (Ds.onSignalPatchFilter (SignalsFilter.Include (string separator)))
+            let from = rendered.IndexOf prefix + prefix.Length
+            let value = HttpUtility.HtmlDecode(rendered.Substring(from, rendered.Length - from - suffix.Length))
+            if value.Contains(string separator) then failwith "the separator reached the page as itself"
+            if not (value.Contains "\\u") then failwith $"no escape was written for the separator: {value}"
+
+    [<Fact>]
+    let ``A NUL character in a signals filter is written as an escape`` () =
+        SignalsFilter.Serialize (SignalsFilter.Include "a\000b") |> should equal @"{ include: /a\u0000b/ }"
 
     [<Fact>]
     let ``A signals filter cannot break out of its attribute`` () =

@@ -28,7 +28,11 @@ module RocketManifestTests =
     let ``RocketManifest.parse reads the version, the time and the components in order`` () =
         let document = parsed ()
         document.Version |> should equal 1
-        document.GeneratedAt |> should equal (DateTimeOffset.Parse("2026-09-21T17:42:04.838Z"))
+        // The reader parses the timestamp with the invariant culture, so the expected value is parsed the same way.
+        // Parsing it with the current culture would make this test fail on a machine whose culture reads a date
+        // differently, which is a bug in the test rather than in the reader.
+        document.GeneratedAt
+        |> should equal (DateTimeOffset.Parse("2026-09-21T17:42:04.838Z", Globalization.CultureInfo.InvariantCulture))
         document.Components |> List.map (fun c -> c.Tag) |> should equal [ "demo-card"; "demo-plain" ]
 
     [<Fact>]

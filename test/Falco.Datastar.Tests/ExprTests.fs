@@ -62,6 +62,16 @@ module ExprTests =
         error |> should equal (SignalNameError.HasHyphen "my-count")
         error.Message |> should equal "The signal name 'my-count' has a hyphen. In an expression Datastar reads a hyphen as minus. Use camelCase instead, for example 'myCount'."
 
+    [<Theory>]
+    // A part that starts with a letter and is made of letters, digits and underscores is the whole rule, so anything
+    // else has to be refused. A dollar sign is the one that matters: it is what an expression uses for a signal.
+    [<InlineData("a$b")>]
+    [<InlineData("$a")>]
+    [<InlineData("a$b.c")>]
+    [<InlineData("a.b$c")>]
+    let ``A name with a dollar sign in it is refused`` (name: string) =
+        problemOf SignalScope.Browser name |> should equal (SignalNameError.NotAPath name)
+
     [<Fact>]
     let ``A blank name is refused`` () =
         problemOf SignalScope.Browser " " |> should equal SignalNameError.Blank
@@ -87,6 +97,29 @@ module ExprTests =
         let error = problemOf SignalScope.Server "a_"
         error |> should equal (SignalNameError.EndsWithUnderscore "a_")
         error.Message |> should equal "The signal name 'a_' has a part that ends with an underscore. Datastar would read that underscore together with the two that start a modifier, and lose part of the name. Remove the trailing underscore."
+
+    // The trailing-underscore case is caught by its own guard, before the rule that reads a name as a path is reached.
+    // Without the guard the name would still be refused, but as NotAPath, which does not say what is wrong with it.
+    // An underscore in the middle of a part is fine, because it is followed by a letter.
+    [<Theory>]
+    [<InlineData("a_")>]
+    [<InlineData("form.a_")>]
+    [<InlineData("a_1_b_")>]
+    let ``A name that ends with an underscore is refused for that reason, not as a name that is not a path`` (name: string) =
+        problemOf SignalScope.Server name
+        |> function
+            | SignalNameError.EndsWithUnderscore reported -> reported |> should equal name
+            | other -> failwith $"expected EndsWithUnderscore for '{name}', got {other}"
+
+    [<Theory>]
+    [<InlineData("a_b")>]
+    [<InlineData("form.a_b")>]
+    [<InlineData("a_1")>]
+    [<InlineData("a_b1_c2")>]
+    let ``An underscore in the middle of a name part is accepted`` (name: string) =
+        match Signal.tryCreate<int> SignalScope.Server name with
+        | Ok signal -> Signal.path signal |> should equal name
+        | Error error -> failwith error.Message
 
     [<Fact>]
     let ``A name that ends with a line break is refused, although a dollar sign in a pattern would let it through`` () =
@@ -144,6 +177,18 @@ module ExprTests =
                     attribute |> should endWith "__ifmissing"
             // The alphabet is mostly bad characters, so a run that accepted nothing would prove nothing
             accepted |> should be (greaterThan 20))
+
+    // These two are the examples the README shows. A test that pins them keeps the documentation and the output in step.
+
+    [<Fact>]
+    let ``README example: dividing an int signal gives a whole number`` () =
+        // binary puts one pair of parentheses around the operation, and Math.trunc goes in front of it
+        Expr.toString (Expr.divide (Expr.read count) (Expr.int 5)) |> should equal "Math.trunc($_count / 5)"
+
+    [<Fact>]
+    let ``README example: several statements in one attribute`` () =
+        Stmt.toString (Stmt.all [ Stmt.set count (Expr.int 0); Stmt.toggle menuOpen ])
+        |> should equal "$_count = 0; $_menuOpen = !$_menuOpen"
 
     // Expressions
 

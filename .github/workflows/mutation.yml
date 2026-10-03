@@ -1,0 +1,59 @@
+name: mutation
+
+# Proves that the test suite catches the mistakes this library could plausibly make. See test/mutation.fsx.
+#
+# It rewrites a line of src for each mutant and runs the whole suite, so it is slow and it must not run alongside
+# anything else that builds the repository. It only runs when someone starts it: Actions tab, mutation, Run workflow.
+# The unit tests are what run on every push.
+on:
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: "Only run the mutants whose name contains this text"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # The script runs dotnet test against net10.0 only, because the code under test is the same for every target.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # The tree has to be clean, because the script checks that it can put every file back afterwards
+      - name: Check the tree is clean
+        run: git diff --exit-code
+
+      - name: Build the library
+        run: dotnet build src/Falco.Datastar -c Release
+
+      # The filter goes through the environment rather than into the script text, so a value with a quote or a
+      # semicolon in it is one argument and not shell syntax. dst.yml does the same.
+      - name: Mutate
+        env:
+          DST_MUTATION_FILTER: ${{ inputs.filter }}
+        run: |
+          dotnet build test/mutation -c Release
+          if [ -n "$DST_MUTATION_FILTER" ]; then
+            dotnet run --project test/mutation -c Release --no-build -- "$DST_MUTATION_FILTER"
+          else
+            dotnet run --project test/mutation -c Release --no-build
+          fi
+
+      # A mutant that survives means the tree was left mutated, and the job failed, so the next one would start wrong
+      - name: Check the source was put back
+        run: |
+          if [ -n "$(ls src/Falco.Datastar/*.mutation-backup 2>/dev/null)" ]; then
+            echo "::error::a backup file was left behind, so a mutant was not restored"
+            exit 1
+          fi
+          git diff --exit-code

