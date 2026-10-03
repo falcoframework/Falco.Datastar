@@ -93,11 +93,12 @@ type Ds =
 
     /// <summary>
     /// Binds a signal to a property of a custom element or web component, instead of its default value or attribute.
-    /// The property name is written in kebab-case, because the HTML parser lowercases attribute names, and Datastar turns it back into camelCase.
+    /// Write the property name in kebab-case, because the HTML parser lowercases attribute names and Datastar turns the name back into camelCase.
+    /// A name with a capital letter in it does not work: Datastar only removes the hyphens, so "someProp" would be read as "someprop".
     /// https://data-star.dev/reference/attributes#data-bind
     /// </summary>
     /// <param name="signalPath">The signal to bind to</param>
-    /// <param name="propName">The element property to bind, e.g. "checked" or "someProp"</param>
+    /// <param name="propName">The element property to bind, e.g. "checked" or "some-prop"</param>
     /// <param name="events">The events that copy the property into the signal. If you leave this out, Datastar uses the element's default events</param>
     /// <returns>Attribute</returns>
     static member bindProp (signalPath:SignalPath, propName:string, ?events:string list) =

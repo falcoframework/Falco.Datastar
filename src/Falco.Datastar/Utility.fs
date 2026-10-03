@@ -159,6 +159,15 @@ module internal Guard =
         if isNull value || not (Regex.IsMatch(value, @"^[A-Za-z_$][A-Za-z0-9_$]*\z")) then
             raise (ArgumentException($"{message}, but it is '{value}'.", parameter))
 
+    /// A signal reference as an expression writes it: one or more dollars, then parts made of letters, digits and underscores, separated by dots.
+    /// This is checked where such a name goes into the output as code rather than as text, so that it cannot bring anything else with it.
+    /// Each part starts with a letter, an underscore or a dollar, because that is how Datastar's own parser reads a signal reference.
+    let private signalReferencePattern = Regex(@"^\$+[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\z", RegexOptions.Compiled)
+
+    let signalReference (parameter:string) (value:string) =
+        if isNull value || not (signalReferencePattern.IsMatch value) then
+            raise (ArgumentException($"The signal reference '{value}' cannot be used here. It is written into the page as code, so it has to be the name of a signal, such as \"$controller\", \"$_controller\" or \"$form.controller\". It cannot have whitespace, an operator, a quote or any other text.", parameter))
+
     let private refuseName (what:string) (name:string) (reason:string) (remedy:string) : unit =
         raise (ArgumentException($"The {what} '{name}' cannot be used in a data- attribute name, because {reason}. {remedy}"))
 

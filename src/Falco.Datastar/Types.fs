@@ -59,9 +59,11 @@ module SignalPath =
                     | true, jsonElement -> ValueSome jsonElement
                     )
                 ) (ValueSome jsonElement)
-        try
-            getSignalCore jsonDocument.RootElement signalPath |> ValueOption.map _.Deserialize<'T>()
-        with | _ -> ValueNone
+        // A part of the path that is not there is not an error: the signal simply has no value here.
+        // A value that cannot be read as 'T is a different matter, and is left to the caller to see.
+        match getSignalCore jsonDocument.RootElement signalPath with
+        | ValueNone -> ValueNone
+        | ValueSome element -> ValueSome (element.Deserialize<'T>())
 
     let createJsonNodeFromPathAndValue<'T> signalPath (signalValue:'T) =
         signalPath
@@ -210,7 +212,10 @@ type RequestOptions = {
             add "selector" (json (string formSelector))
         | CustomJson customJson ->
             add "contentType" (json "json")
-            add "payload" (JsonSerializer.SerializeToNode(customJson, JsonSerializerOptions.SignalsDefault).ToJsonString RequestJson.options)
+            match isNull (box customJson) with
+            | true -> add "payload" "null"
+            | false ->
+                add "payload" (JsonSerializer.SerializeToNode(customJson, JsonSerializerOptions.SignalsDefault).ToJsonString RequestJson.options)
         | Json -> add "contentType" (json "json")
 
         if not (SignalsFilter.IsNone options.FilterSignals) then
@@ -257,7 +262,9 @@ type RequestOptions = {
             | AbortController controller when String.IsNullOrWhiteSpace controller ->
                 raise (ArgumentException("RequestOptions.RequestCancellation is AbortController without a name. Write the signal that holds the controller, for example AbortController \"$controller\", or use Auto."))
             | AbortController controller ->
-                // Datastar only accepts an AbortController object, so the name is written as code and not as text
+                // Datastar only accepts an AbortController object, so the name is written as code and not as text.
+                // It is a signal name, which is a chain of path segments, so it is checked before it goes in as code.
+                Guard.signalReference "RequestOptions.RequestCancellation" controller
                 add "requestCancellation" controller
             | other -> add "requestCancellation" (json (RequestCancellation.Serialize other))
 
@@ -453,7 +460,10 @@ type DsAttr =
         { dsAttr with Value = ValueSome value }
 
     static member generateKey dsAttr =
+        // Every part of the key goes into the name of an attribute, and Falco.Markup does not escape an attribute name.
+        // A quote in any of them would end the name early and could add attributes of its own.
         dsAttr.Target |> ValueOption.iter (Guard.attributeName (DsAttr.describeTarget dsAttr.Name) (not dsAttr.Modifiers.IsEmpty))
+        Guard.attributeName "attribute name" false dsAttr.Name
         StringBuilder()
         |> _.Append(Constants.dataSlugPrefix) |> _.Append('-')
         |> _.Append(dsAttr.Name)
@@ -467,6 +477,7 @@ type DsAttr =
             | [] -> sb
             | modifiers ->
                 for modifier in modifiers do
+                    Guard.attributeName "modifier name" false modifier.Name
                     sb.Append("__") |> _.Append(modifier.Name) |> ignore
                     for tag in modifier.Tags do
                         Guard.attributeName "modifier value" false tag
