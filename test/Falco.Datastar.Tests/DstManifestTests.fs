@@ -64,7 +64,7 @@ module DstManifestTests =
         // so that would advance the generator in whatever order the compiler chose, and the manifest a seed produces
         // would differ between a debug and a release build. A fold says what the order is.
         let components =
-            [ for index in 0 .. Dst.intBelow 12 generator - 1 -> randomComponent generator index :> JsonNode ]
+            [ for index in 0 .. Dst.intBelow 12 generator - 1 -> randomComponent generator index ]
             |> List.toArray
         manifest["components"] <- JsonArray components
         manifest
