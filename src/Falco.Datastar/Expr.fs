@@ -51,7 +51,10 @@ type SignalNameError =
         match error with
         | SignalNameError.Blank -> "A signal needs a name. Give it a camelCase name such as 'menuOpen', or a dotted one such as 'form.firstName'."
         | SignalNameError.HasHyphen name ->
-            $"The signal name '{name}' has a hyphen. In an expression Datastar reads a hyphen as minus. Use camelCase instead, for example '{SignalNameText.camelCase name}'."
+            // Datastar's own signal pattern treats '-' as part of a name, so '$foo-bar' is one signal called
+            // 'foo-bar'. The name has to survive an attribute name as well, and the HTML parser has already lowercased
+            // it there, so 'myCount' and 'my-count' would be two different signals. Write the camelCase form.
+            $"The signal name '{name}' has a hyphen. The name has to work in an attribute name as well as in an expression, and the HTML parser lowercases an attribute name, so a name with a capital in it cannot survive that. Write the camelCase form, for example '{SignalNameText.camelCase name}'."
         | SignalNameError.StartsWithUnderscore (SignalScope.Server, name) ->
             $"The signal name '{name}' starts with an underscore. Datastar keeps a signal like that in the browser and never sends it to the server. Use Signal.browser for a browser-only signal, and write the name without the underscore. Use a name without an underscore for a signal you want to send."
         | SignalNameError.StartsWithUnderscore (SignalScope.Browser, name) ->

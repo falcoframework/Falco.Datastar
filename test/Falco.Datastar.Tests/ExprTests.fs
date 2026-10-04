@@ -57,10 +57,10 @@ module ExprTests =
         (problemOf SignalScope.RocketComponent "_x").Message |> should equal "The signal name '_x' starts with an underscore. Write the name without it."
 
     [<Fact>]
-    let ``A name with a hyphen is refused, because an expression reads it as minus`` () =
+    let ``A name with a hyphen is refused, because the attribute name and the expression would disagree`` () =
         let error = problemOf SignalScope.Browser "my-count"
         error |> should equal (SignalNameError.HasHyphen "my-count")
-        error.Message |> should equal "The signal name 'my-count' has a hyphen. In an expression Datastar reads a hyphen as minus. Use camelCase instead, for example 'myCount'."
+        error.Message |> should equal "The signal name 'my-count' has a hyphen. The name has to work in an attribute name as well as in an expression, and the HTML parser lowercases an attribute name, so a name with a capital in it cannot survive that. Write the camelCase form, for example 'myCount'."
 
     [<Theory>]
     // A part that starts with a letter and is made of letters, digits and underscores is the whole rule, so anything
@@ -150,7 +150,8 @@ module ExprTests =
     [<Fact>]
     let ``Signal.browser raises with the same message when the name is invalid`` () =
         let raised = Assert.Throws<ArgumentException>(fun () -> Signal.browser<int> "my-count" |> ignore)
-        raised.Message |> should haveSubstring "Use camelCase instead, for example 'myCount'."
+        if not (raised.Message.Contains "Write the camelCase form, for example 'myCount'.") then
+            failwith raised.Message
 
     /// What Datastar 1.0.4 does with the key of a data-signals attribute: it splits at '__' and applies its camel case to what is left (library/src/utils/text.ts).
     let private datastarSignalName (attribute:string) =

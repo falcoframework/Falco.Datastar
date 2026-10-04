@@ -101,7 +101,7 @@ A carriage return is now written as `&#13;`, which a parser keeps. HTML cannot k
 
 **`Ds.cdnSrc` and `Ds.cdnScript`.** They now load Datastar 1.0.4. They loaded 1.0.0-RC.7 before, so your pages move across several Datastar releases.
 The changes in Datastar that can affect your pages are listed under [Changes in Datastar itself](#changes-in-datastar-itself), and the full list is in the [Datastar release notes](https://github.com/starfederation/datastar/releases).
-To stay on the old script for now, write the tag yourself. Note that some things need the newer script: `Ds.bindProp`, `Ds.bindEvent` and `OnEventModifier.Document` need 1.0.0, `Ds.nonce` needs 1.0.3, and the Rocket helpers need the 1.0.4 bundle. `Ds.query`, `RequestCancellation = Cleanup` and `RequestOptions.RetryMaxWait` need a script newer than RC.7 too.
+To stay on the old script for now, write the tag yourself. Note that some things need a newer script than RC.7, which is what this library was on before: `Ds.bindProp`, `Ds.bindEvent` and `OnEventModifier.Document` need 1.0.0, `Ds.nonce` needs 1.0.3, and the Rocket helpers need the 1.0.4 bundle. `Ds.query`, `RequestCancellation = Cleanup` and `RequestOptions.RetryMaxWait` need a newer script too.
 
 ```fsharp
 Elem.script [ Attr.type' "module"; Attr.src "https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.7/bundles/datastar.js" ] []

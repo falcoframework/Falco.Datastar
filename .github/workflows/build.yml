@@ -61,6 +61,12 @@ jobs:
       - name: Check the mutation program compiles
         run: dotnet build test/mutation -c Release
 
+      # Every F# example in the README and the changelog is type-checked against the built library. A maintainer reads
+      # the README to decide whether this binding can be trusted, and an example that no longer compiles is the fastest
+      # way to lose them. It is a script rather than a test because it drives the compiler as a child process.
+      - name: Check the documented examples
+        run: dotnet fsi test/readme-examples.fsx
+
       # A package that cannot be packed cannot be published, and a missing README or icon only shows up when someone
       # tries. Packing is the check that runs on every change, so a release is never the thing that finds out.
       # It publishes nothing: how this library reaches NuGet is the maintainer's business, not this workflow's.

@@ -147,11 +147,30 @@ Two details of Datastar's behaviour matter here. The Tao advises showing a loadi
 `Ds.indicator` turns off when the request ends, and a 204 ends the request before the update comes, so for a write that answers 204, set the indicator yourself and clear it when the update arrives.
 Also, `@get` stops its request when the page is hidden and opens it again when the page is visible (`openWhenHidden` is false for `@get`), so the server should send the current state first on every new stream, as the example does.
 
+Both of those mean the read handler sends the state before it waits for changes, rather than waiting first:
+
+```fsharp
+let handleUpdates : HttpHandler = fun ctx -> task {
+    do! Response.sseStartResponse ctx
+    // The current state first. A new visitor needs it, and so does one whose stream was reopened after the page was hidden.
+    do! Response.ssePatchSignal ctx (SignalPath.sp "count") (counter.Current)
+    let mutable last = counter.Current
+    while true do
+        let next = counter.WaitForChange last     // your own way of waiting for the next value
+        last <- next
+        do! Response.ssePatchSignal ctx (SignalPath.sp "count") next
+}
+```
+
+`Ds.indicator` goes on the same element as the action that makes the request, because Datastar only sets the signal for requests made by that element. On a wrapper around the button it would never move.
+
 ### Compression
 
 A stream of morphs compresses very well. ASP.NET Core does not compress `text/event-stream` unless you add it:
 
 ```fsharp
+open Microsoft.AspNetCore.ResponseCompression
+
 let builder = WebApplication.CreateBuilder()
 
 builder.Services.AddResponseCompression(fun options ->
@@ -210,9 +229,9 @@ In a browser, the save request carried only `{"form":{"name":"..."}}`. The brows
 A name that Datastar cannot use is refused with a message that says what to write. Datastar reads the name of a signal from an attribute name, and HTML makes attribute names lower case,
 so the name has to read the same there and in an expression. These names are refused:
 
-- a name with a hyphen, because an expression reads a hyphen as minus. Write `myCount`, not `my-count`.
+- a name with a hyphen. Datastar's signal pattern treats `.` and `-` as part of a name, so `$foo-bar` is one signal called `foo-bar`, not `$foo` minus something. That is fine in an expression, but the name reaches the signal through an attribute name, where the HTML parser has already lowercased it and the case cannot be put back. So `myCount` and `my-count` would be two different signals. Write `myCount`.
 - a name that starts with an underscore. Datastar keeps such a signal in the browser, so a server signal cannot have one, and `Signal.browser` adds the underscore itself.
-- a part that starts with a capital letter, such as `Menu` or `form.First`. Start each part with a lower case letter.
+- a part that starts with a capital letter, such as `Menu` or `form.First`. Start each part with a lower case letter, for the same reason.
 - a double underscore, which Datastar reads as the start of a modifier, and an underscore at the end of a part.
 - anything that is not letters, digits, underscores and dots.
 
@@ -317,6 +336,8 @@ let signals = MySignals()
 
 Elem.div [ Ds.signals signals ] []
 ```
+
+`Ds.signals` puts the object's property names into the attribute's value rather than into its key, so the names reach Datastar exactly as you wrote them and no casing rule applies. That also means a property name is one signal, not a path: `{| form.name = "Ada" |}` makes a signal called `form.name` as a single name, not a `form` object with a `name` in it, and a property name with a hyphen in it is a name Datastar reads as one piece where the attribute-key form would have been split. Use `Ds.signal` with a path when you want nesting or a camelCase name to survive.
 
 As a convenience, you can create a single signal with the option to add it only if it is missing.
 
@@ -574,12 +595,15 @@ Elem.div [ Ds.onIntersect ("$intersected = true", visibility = Half, onlyOnce = 
 
 ### [Ds.onSignalPatch | Ds.onSignalPatchFilter : `data-on-signal-patch`](https://data-star.dev/reference/attributes#data-on-signal-patch)
 
-Runs an expression whenever a signal is patched. Use it sparingly, because it runs on every patch.
+Runs an expression whenever a signal is patched. Datastar listens for its own patch events on the `document`, so every `data-on-signal-patch` on the page runs for every patch, whichever element made it. Use it sparingly, and give it a `Ds.onSignalPatchFilter` unless you really do want all of them.
+
+The filter is a separate attribute read from the same element as the `data-on-signal-patch`, so put the two together:
 
 ```fsharp
-Elem.div [ Ds.onSignalPatch "$show = !$show" ] []
-
-Elem.div [ Ds.onSignalPatchFilter (SignalsFilter.Include "foo") ] []
+Elem.div [
+    Ds.onSignalPatch "$show = !$show"
+    Ds.onSignalPatchFilter (SignalsFilter.Include "form")
+] []
 ```
 
 A `SignalsFilter` holds regular expressions for the paths of the signals to include and exclude. Write the pattern without slashes around it: the library adds them, and escapes a slash inside the pattern.
@@ -945,6 +969,8 @@ Rocket.templateElse [ Text.raw "Keep going." ]
 `Rocket.forEach` gives the function that builds a row the item and the index as typed expressions, so the row cannot refer to a name that the loop does not define. Pass `itemName` and `indexName` to choose other names.
 `Rocket.templateFor` and the string versions of `templateIf` and `templateElseIf` take the list and the condition as text.
 
+Rocket's own syntax needs a name for the item as well as the index, so `Rocket.templateFor` writes `item, n in <source>` even when you only rename the index. Naming the index without an item is an error in Rocket, and the library does not let you write it.
+
 The Tao says to keep your HTML DRY with your backend templates. Render a list on the server when the server knows it, and use these directives for lists that only the browser knows.
 
 ### `Request.getRocketManifests`
@@ -1025,8 +1051,8 @@ This section is about the string helpers. With the [typed functions](#signals-ex
 
 The sample code uses `$` in some places and not in others. `$` marks the value of a signal. Without it, you name the signal itself.
 
-The `$` symbol is a shorthand to get the value of the signal (e.g. `$count` -> `count.value`), so when the `$` is elided, you are referring to the signal directly.
-[`Ds.bind signalPath`](#dsbind--data-bind) is two-way binding to the signal, so it requires the signal path, no `$`.
+The `$` is a shorthand for reading the signal's value. Datastar rewrites `$count` to a read of the signal itself, and reading a signal gives its value, so `$count` *is* the value rather than a wrapper you then unwrap.
+[`Ds.bind signalPath`](#dsbind--data-bind) is two-way binding, so it needs the path, with no `$`.
 [`Ds.text`](#dstext--data-text) is replacing the element's innerText, so it needs the value, via `$`.
 [`Ds.computed (signalPath, expression)`](#dscomputed--data-computed) needs both a signal path AND an expression, e.g. `Ds.computed ("countPlusTen", "$count + 10")`.
 

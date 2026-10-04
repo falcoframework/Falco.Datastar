@@ -188,6 +188,13 @@ module RequestOptionsTests =
         let error = Assert.Throws<ArgumentException>(fun () -> Ds.get ("/a", { RequestOptions.Defaults with RetryScaler = nan }) |> ignore)
         error.Message |> should equal "RequestOptions.RetryScaler must be a finite number, but it is NaN. Datastar multiplies the wait by it after every retry. Leave it at 2, or use a number such as 1.5."
 
+    // An infinity is refused as well. The check only runs when the value differs from the default, and the default is a
+    // finite number, so every value a caller can actually set is covered by it.
+    [<Fact>]
+    let ``RequestOptions RetryScaler that is an infinity is refused`` () =
+        Assert.Throws<ArgumentException>(fun () -> Ds.get ("/a", { RequestOptions.Defaults with RetryScaler = Double.PositiveInfinity }) |> ignore) |> ignore
+        Assert.Throws<ArgumentException>(fun () -> Ds.get ("/a", { RequestOptions.Defaults with RetryScaler = Double.NegativeInfinity }) |> ignore) |> ignore
+
     [<Fact>]
     let ``RequestOptions with every option set writes them in a fixed order`` () =
         let everything =
