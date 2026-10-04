@@ -120,12 +120,21 @@ module EscapingTests =
     let ``A line break in a signals filter is written as an escape, because a literal cannot contain one`` () =
         SignalsFilter.Serialize (SignalsFilter.Include "a\nb\r") |> should equal @"{ include: /a\nb\r/ }"
 
-    // U+2028 and U+2029 are line separators that a regular expression literal can hold, but a JavaScript string cannot:
-    // JavaScript reads a line separator as the end of a string, so one in a filter would end the expression early.
+    // U+2028 and U+2029 are line terminators. A JavaScript string ends at one, and a JavaScript regular expression
+    // literal cannot contain one at all, so both have to be written as an escape.
     [<Fact>]
     let ``A line separator in a signals filter is written as an escape, because it ends a JavaScript string`` () =
         SignalsFilter.Serialize (SignalsFilter.Include "a\u2028b") |> should equal @"{ include: /a\u2028b/ }"
         SignalsFilter.Serialize (SignalsFilter.Include "a\u2029b") |> should equal @"{ include: /a\u2029b/ }"
+
+    [<Fact>]
+    let ``A line separator after a backslash in a signals filter is written as an escape too`` () =
+        // A backslash and the character after it are kept together, so an escape that is already there survives. The
+        // line separators have to be caught on that path as well: falling through to the catch-all left one raw, and
+        // a regular expression literal with a line terminator in it is a SyntaxError, so the whole expression failed.
+        // The backslash is kept and the separator becomes u2028 after it, which is a valid escape.
+        SignalsFilter.Serialize (SignalsFilter.Include "a\\\u2028b") |> should equal @"{ include: /a\u2028b/ }"
+        SignalsFilter.Serialize (SignalsFilter.Include "a\\\u2029b") |> should equal @"{ include: /a\u2029b/ }"
 
     [<Fact>]
     let ``A line separator in a signals filter never reaches the page as itself`` () =

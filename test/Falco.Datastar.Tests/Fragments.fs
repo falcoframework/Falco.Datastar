@@ -77,9 +77,10 @@ module Fragments =
     /// The groups and their weights, for a test that reports how often each one was reached
     let weights = groups
 
-    /// Picks one fragment from one group, chosen by weight. Every group is reachable, so a case that a parser
-    /// mishandles is generated rather than merely possible.
-    let fragment (generator: Generator) =
+    /// As fragment, and the index of the group the fragment came from. A test that measures which groups a long run
+    /// reaches needs that index: some fragments are in two groups at once, and looking the text up afterwards credits
+    /// every such draw to the first group that holds it, which is not the group that was weighted.
+    let fragmentWithGroup (generator: Generator) =
         let total = groups |> List.sumBy snd
         let mutable roll = Generator.intBelow total generator
         // The group is found by index rather than by remembering its text, because a fragment could legitimately be
@@ -90,8 +91,14 @@ module Fragments =
                 let _, weight = groups.[index]
                 if roll < weight then chosenGroup <- index
                 else roll <- roll - weight
-        let fragments, _ = groups.[max 0 chosenGroup]
-        fragments.[Generator.intBelow fragments.Length generator]
+        let group = max 0 chosenGroup
+        let fragments, _ = groups.[group]
+        fragments.[Generator.intBelow fragments.Length generator], group
+
+    /// Picks one fragment from one group, chosen by weight. Every group is reachable, so a case that a parser
+    /// mishandles is generated rather than merely possible.
+    let fragment (generator: Generator) =
+        fragmentWithGroup generator |> fst
 
     /// Text of zero to a few fragments. Length is weighted short, because the interesting cases are usually short
     /// and a long run of them rarely finds anything new.
@@ -112,20 +119,16 @@ module Fragments =
 
     /// Which group each draw came from, so a test can check that the weighting is what the generator does.
     /// One generator for the whole run, or each group would be measured against a different sequence of rolls.
-    /// The group is identified by its own fragments, because a drawn fragment is only known to belong to one group
-    /// by looking it up: some groups hold text that is also the whole result.
+    /// The group index is the one the generator chose, not one recovered by looking the text up: a fragment that is
+    /// in two groups would otherwise always be counted for the first, and the weights would not be what is measured.
     let fragmentCounts (draws: int) =
         let generator = Generator.ofSeed 24680
         let totals = Dictionary<int, int>()
         for index in 0 .. groups.Length - 1 do
             totals[index] <- 0
         for _ in 1 .. draws do
-            let drawn = fragment generator
-            // A drawn fragment belongs to whichever group holds it; a fragment in two groups counts for the first,
-            // which only happens if a group overlaps another and is worth knowing about rather than hiding.
-            match groups |> List.tryFindIndex (fun (fragments, _) -> fragments |> Array.contains drawn) with
-            | Some index -> totals[index] <- totals[index] + 1
-            | None -> ()
+            let _, group = fragmentWithGroup generator
+            totals[group] <- totals[group] + 1
         totals |> Seq.map (fun entry -> entry.Key, entry.Value) |> Seq.toList
 
     /// Every fragment in every group, so a test can assert each one is reachable rather than only that some are

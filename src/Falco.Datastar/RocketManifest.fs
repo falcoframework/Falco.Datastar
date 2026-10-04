@@ -140,16 +140,23 @@ module RocketManifest =
 
     let private jsonNull = JsonDocument.Parse("null").RootElement
 
-    let private optionalText (name:string) (element:JsonElement) =
+    // A property that is missing is not an error, but a property that is there with the wrong kind of value is.
+    // Reporting ValueNone for "required":"yes" would say the prop is not required, which is a different claim from the
+    // one the manifest makes, and the reader could not tell them apart.
+    let private optionalText (name:string) (place:string) (element:JsonElement) =
         match property name element with
-        | ValueSome value when value.ValueKind = JsonValueKind.String -> ValueSome (value.GetString())
-        | _ -> ValueNone
+        | ValueNone -> Ok ValueNone
+        | ValueSome value when value.ValueKind = JsonValueKind.String -> Ok (ValueSome (value.GetString()))
+        | ValueSome value when value.ValueKind = JsonValueKind.Null -> Ok ValueNone
+        | ValueSome _ -> Error (RocketManifestError.WrongKind (name, "text", place))
 
-    let private optionalBool (name:string) (element:JsonElement) =
+    let private optionalBool (name:string) (place:string) (element:JsonElement) =
         match property name element with
-        | ValueSome value when value.ValueKind = JsonValueKind.True -> ValueSome true
-        | ValueSome value when value.ValueKind = JsonValueKind.False -> ValueSome false
-        | _ -> ValueNone
+        | ValueNone -> Ok ValueNone
+        | ValueSome value when value.ValueKind = JsonValueKind.True -> Ok (ValueSome true)
+        | ValueSome value when value.ValueKind = JsonValueKind.False -> Ok (ValueSome false)
+        | ValueSome value when value.ValueKind = JsonValueKind.Null -> Ok ValueNone
+        | ValueSome _ -> Error (RocketManifestError.WrongKind (name, "true or false", place))
 
     let private items (name:string) (place:string) (element:JsonElement) =
         match property name element with
@@ -166,9 +173,11 @@ module RocketManifest =
 
     /// Says which entry an error is about: by its name when it has one, and by its position when it does not.
     let private describe (kind:string) (owner:string) (position:int) (element:JsonElement) =
-        match optionalText "name" element with
-        | ValueSome name -> $"the {kind} \"{name}\" of {owner}"
-        | ValueNone -> $"{kind} {position} of {owner}"
+        // The name is only used to make a better error message, so a name of the wrong kind falls back to the
+        // position rather than failing the whole read.
+        match property "name" element with
+        | ValueSome name when name.ValueKind = JsonValueKind.String -> $"the {kind} \"{name.GetString()}\" of {owner}"
+        | _ -> $"{kind} {position} of {owner}"
 
     let private propType (name:string) =
         match name with
@@ -192,52 +201,82 @@ module RocketManifest =
         | "custom-event" -> RocketEventKind.CustomEvent
         | other -> RocketEventKind.Other other
 
-    let private readDocs (element:JsonElement) =
+    /// Reads properties in order and stops at the first error, the way a required property is read. The values are
+    /// boxed into a list because a list is the only F# collection that can hold a different type per element; the
+    /// caller unboxes them where it builds the record, where each one is known to be the type it read.
+    let private readInOrder (reads:Result<obj, RocketManifestError> list) =
+        reads
+        |> List.fold
+            (fun readSoFar next -> readSoFar |> Result.bind (fun soFar -> next |> Result.map (fun value -> value :: soFar)))
+            (Ok [])
+        |> Result.map List.rev
+
+    let private readDocs (place:string) (element:JsonElement) =
         match property "docs" element with
         | ValueSome docs when docs.ValueKind = JsonValueKind.Object ->
-            ValueSome { Description = optionalText "description" docs
-                        Label = optionalText "label" docs
-                        Control = optionalText "control" docs
-                        Placeholder = optionalText "placeholder" docs }
-        | _ -> ValueNone
+            [ "description"; "label"; "control"; "placeholder" ]
+            |> List.map (fun name -> optionalText name place docs |> Result.map box)
+            |> readInOrder
+            |> Result.map (fun values ->
+                ValueSome { Description = values.[0] :?> string voption
+                            Label = values.[1] :?> string voption
+                            Control = values.[2] :?> string voption
+                            Placeholder = values.[3] :?> string voption })
+        | _ -> Ok ValueNone
 
     let private readProp (tag:string) (position:int) (element:JsonElement) =
         let place = describe "prop" tag position element
-        text "name" place element
-        |> Result.bind (fun name ->
-            text "attribute" place element
-            |> Result.bind (fun attribute ->
-                text "type" place element
-                |> Result.bind (fun typeName ->
-                    // A codec with no default leaves the key out of the JSON, so a missing one is a null default
-                    property "default" element
-                    |> ValueOption.defaultValue jsonNull
-                    |> fun defaultValue -> Ok defaultValue
-                    |> Result.map (fun defaultValue ->
-                        { Name = name
-                          Attribute = attribute
-                          Type = propType typeName
-                          Default = defaultValue.Clone()
-                          Required = optionalBool "required" element |> ValueOption.defaultValue false
-                          Values =
-                            match property "values" element with
-                            | ValueSome values when values.ValueKind = JsonValueKind.Array ->
-                                ValueSome (values.EnumerateArray() |> Seq.map (fun value -> value.Clone()) |> List.ofSeq)
-                            | _ -> ValueNone
-                          Docs = readDocs element }))))
+        [ text "name" place element |> Result.map box
+          text "attribute" place element |> Result.map box
+          text "type" place element |> Result.map box
+          optionalBool "required" place element |> Result.map box
+          readDocs place element |> Result.map box ]
+        |> readInOrder
+        |> Result.map (fun values ->
+            let name = values.[0] :?> string
+            let attribute = values.[1] :?> string
+            let typeName = values.[2] :?> string
+            let required = values.[3] :?> bool voption
+            let docs = values.[4] :?> RocketPropDocs voption
+            // A codec with no default leaves the key out of the JSON, so a missing one is a null default
+            let defaultValue = property "default" element |> ValueOption.defaultValue jsonNull
+            { Name = name
+              Attribute = attribute
+              Type = propType typeName
+              Default = defaultValue.Clone()
+              Required = required |> ValueOption.defaultValue false
+              Values =
+                match property "values" element with
+                | ValueSome values when values.ValueKind = JsonValueKind.Array ->
+                    ValueSome (values.EnumerateArray() |> Seq.map (fun value -> value.Clone()) |> List.ofSeq)
+                | _ -> ValueNone
+              Docs = docs })
 
     let private readSlot (tag:string) (position:int) (element:JsonElement) =
-        text "name" (describe "slot" tag position element) element
-        |> Result.map (fun name -> { Name = name; Description = optionalText "description" element })
+        let place = describe "slot" tag position element
+        [ text "name" place element |> Result.map box
+          optionalText "description" place element |> Result.map box ]
+        |> readInOrder
+        |> Result.map (fun values ->
+            { Name = values.[0] :?> string
+              Description = values.[1] :?> string voption })
 
     let private readEvent (tag:string) (position:int) (element:JsonElement) =
-        text "name" (describe "event" tag position element) element
-        |> Result.map (fun name ->
+        let place = describe "event" tag position element
+        [ text "name" place element |> Result.map box
+          optionalText "kind" place element |> Result.map box
+          optionalBool "bubbles" place element |> Result.map box
+          optionalBool "composed" place element |> Result.map box
+          optionalText "description" place element |> Result.map box ]
+        |> readInOrder
+        |> Result.map (fun values ->
+            let name = values.[0] :?> string
+            let kind = values.[1] :?> string voption
             { Name = name
-              Kind = optionalText "kind" element |> ValueOption.map eventKind |> ValueOption.defaultValue RocketEventKind.Event
-              Bubbles = optionalBool "bubbles" element
-              Composed = optionalBool "composed" element
-              Description = optionalText "description" element })
+              Kind = kind |> ValueOption.map eventKind |> ValueOption.defaultValue RocketEventKind.Event
+              Bubbles = values.[2] :?> bool voption
+              Composed = values.[3] :?> bool voption
+              Description = values.[4] :?> string voption })
 
     let private readComponent (position:int) (element:JsonElement) =
         text "tag" $"component {position}" element

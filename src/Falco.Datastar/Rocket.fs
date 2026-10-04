@@ -2,6 +2,7 @@ namespace Falco.Datastar
 
 open System
 open System.Globalization
+open System.Numerics
 open System.Text.Json
 open Falco.Markup
 
@@ -66,10 +67,21 @@ type Rocket =
     /// A number prop. It is written with the invariant culture, because the browser always reads a dot as the decimal separator, whatever the server's culture is.
     /// </summary>
     /// <param name="name">The prop name as defined in the component</param>
-    /// <param name="value">Any numeric type</param>
+    /// <param name="value">Any numeric type. A value Rocket's number codec cannot read is refused: the codec runs Number(value) and turns anything that is not a finite number into 0, so writing one here would reach the component as a different value rather than as an error</param>
     /// <returns>Attribute</returns>
-    static member propNumber<'T when 'T :> IFormattable> (name:string, value:'T) =
-        Rocket.prop (name, (value :> IFormattable).ToString(null, CultureInfo.InvariantCulture))
+    static member propNumber<'T when 'T :> INumberBase<'T>> (name:string, value:'T) =
+        // Boxed, because a runtime type test on a type variable the compiler cannot pin down is not allowed.
+        let boxed = box value
+        let text = (value :> IFormattable).ToString(null, CultureInfo.InvariantCulture)
+        // Number("NaN") and Number("Infinity") are not finite, so the component reads 0. Say so here instead.
+        let finite =
+            match boxed with
+            | :? float as f -> Double.IsFinite f
+            | :? float32 as f -> Single.IsFinite f
+            | _ -> true
+        if not finite then
+            invalidArg (nameof value) $"'{text}' is not a finite number. Rocket's number codec reads Number(value) and turns anything that is not finite into 0, so the component would get 0 rather than the value written here."
+        Rocket.prop (name, text)
 
     /// <summary>
     /// A boolean prop. It is always written, as "true" or "false". If the attribute were left out, the component would use the prop's default, which might be true.

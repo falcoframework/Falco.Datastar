@@ -913,8 +913,9 @@ Rocket rewrites `$$name` into a path that is unique to that instance, so two ins
 The typed way declares the signal in F#, so the state needs no JavaScript. The component declares it with `$$('on', false)` in its `setup`, and the page binds to that declared name:
 
 ```fsharp
-// In the component's setup: $('my-toggle', { setup: (ctx) => { ctx.store('on', false) ... } })
-// where the store key is the local signal. The server renders the tag and binds to it by name.
+// In the component's setup: rocket('my-toggle', { mode: 'light', setup: ($) => { $('on', false) } })
+// $$('on', false) declares a signal local to this component instance, which is what
+// Ds.signal / Rocket.local then refer to by the name "on". The server renders the tag.
 
 Elem.create "my-toggle" [ Attr.id "toggle" ] [
     Elem.button [ Ds.onClick (Rocket.call "toggle") ] [ Text.raw "Toggle" ]
@@ -922,7 +923,7 @@ Elem.create "my-toggle" [ Attr.id "toggle" ] [
 ]
 ```
 
-`Signal.rocket` reads as `$$name` in an expression, which is how the string helpers above refer to a component's own signal. It is refused by `Ds.signal`, `Ds.bind`, `Ds.computed` and `Ds.indicator`, because those write a name into an attribute key and Rocket only rewrites such a key for a signal the component actually declared. Write the name with `Rocket.local` in an expression, or declare the signal in the component and bind to it with `Ds.bind "on"`.
+`Signal.rocket` reads as `$$name` in an expression and as the plain local name in an attribute key. Rocket rewrites both to the component instance's own path, so two instances of a component never share the state. The rewrite covers `data-signals`, `data-bind`, `data-computed`, `data-indicator` and `data-ref`, and it runs over the component's children and its render output — so put these attributes inside the component. Outside a component no rewrite happens, and there the name means a page signal.
 
 Define the tag with `rocket('my-toggle', { mode: 'light' })`. It needs no props, setup or render function. Two instances keep separate state: toggling one leaves the other alone.
 The string helpers do the same, with an action that you register in JavaScript:

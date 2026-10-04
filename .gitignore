@@ -354,3 +354,6 @@ MigrationBackup/
 
 # Rider (JetBrain's cross-platform .NET IDE) working folder
 .idea/
+
+# Local tooling preferences, not project source
+.commandcode/

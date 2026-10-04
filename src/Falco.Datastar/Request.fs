@@ -3,9 +3,14 @@ module Falco.Datastar.Request
 
 open System
 open System.IO
+open System.Text
 open System.Text.Json
 open Microsoft.AspNetCore.Http
 open StarFederation.Datastar.FSharp
+
+/// UTF-8 that raises on a byte it cannot decode. Encoding.UTF8 itself substitutes U+FFFD and carries on, which would
+/// turn bytes that are not valid UTF-8 into a manifest that parses, with a tag name or a doc string quietly altered.
+let private StrictUtf8 = UTF8Encoding(false, true)
 
 /// <summary>
 /// Deserialize the signals into 'T, using case-insensitive JsonSerializerOptions. Can only call this once per request
@@ -54,7 +59,14 @@ let getRocketManifests (ctx:HttpContext) =
             | true ->
                 return Error (RocketManifestError.TooLarge maxManifestBytes)
             | false ->
-                return RocketManifest.parse (System.Text.Encoding.UTF8.GetString(body.GetBuffer(), 0, int body.Length))
+                // A strict decoder: Encoding.UTF8 replaces a malformed byte with U+FFFD, so a tag name or a
+                // documentation string that was not valid UTF-8 would arrive altered and then be accepted as a
+                // manifest. Bytes that are not valid UTF-8 are not JSON here, so they are reported as NotJson.
+                try
+                    let text = StrictUtf8.GetString(body.GetBuffer(), 0, int body.Length)
+                    return RocketManifest.parse text
+                with :? DecoderFallbackException as error ->
+                    return Error (RocketManifestError.NotJson $"the request body is not valid UTF-8: {error.Message}")
         with
         | :? OperationCanceledException -> return Error RocketManifestError.Cancelled
         // ASP.NET Core's BadHttpRequestException and the errors of a connection that was reset are IOExceptions too

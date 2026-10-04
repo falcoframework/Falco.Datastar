@@ -14,11 +14,15 @@ module internal String =
     let computeDatastarKebab (value:string) =
         let replace (pattern:string) (replacement:string) (options:RegexOptions) (input:string) =
             Regex.Replace(input, pattern, replacement, options)
+        // CultureInvariant on the two case-insensitive ones: the JavaScript they copy has no culture, but .NET's
+        // IgnoreCase alone folds by the current culture, so under tr-TR an I no longer matches [a-z] and "row1I"
+        // would become "row1i" where Rocket reads "row1-i". The cache would then keep the wrong attribute name.
+        let ignoreCase = RegexOptions.IgnoreCase ||| RegexOptions.CultureInvariant
         value
         |> replace "([A-Z]+)([A-Z][a-z])" "$1-$2" RegexOptions.None
         |> replace "([a-z0-9])([A-Z])" "$1-$2" RegexOptions.None
-        |> replace "([a-z])([0-9]+)" "$1-$2" RegexOptions.IgnoreCase
-        |> replace "([0-9]+)([a-z])" "$1-$2" RegexOptions.IgnoreCase
+        |> replace "([a-z])([0-9]+)" "$1-$2" ignoreCase
+        |> replace "([0-9]+)([a-z])" "$1-$2" ignoreCase
         |> replace "[\\s_]+" "-" RegexOptions.None
         |> fun kebab -> kebab.ToLowerInvariant()
 
@@ -98,6 +102,11 @@ module internal Js =
             match afterBackslash, character with
             | true, '\n' -> builder.Append 'n' |> ignore; afterBackslash <- false
             | true, '\r' -> builder.Append 'r' |> ignore; afterBackslash <- false
+            // U+2028 and U+2029 are line terminators, and a JavaScript regular expression literal cannot contain one.
+            // Handling them here rather than letting them fall to the catch-all is the whole point: a backslash in
+            // front of one would otherwise leave it raw and produce a literal that does not parse.
+            | true, '\u2028' -> builder.Append "u2028" |> ignore; afterBackslash <- false
+            | true, '\u2029' -> builder.Append "u2029" |> ignore; afterBackslash <- false
             | true, other -> builder.Append other |> ignore; afterBackslash <- false
             | false, '\\' -> builder.Append '\\' |> ignore; afterBackslash <- true
             | false, '/' -> builder.Append "\\/" |> ignore

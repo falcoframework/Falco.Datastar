@@ -54,6 +54,18 @@ module RocketTests =
         renderOnMyEl (Rocket.propString (propName, "v"))
         |> should equal $"""<my-el {attribute}="v"></my-el>"""
 
+    [<Fact>]
+    let ``Rocket props get the same attribute name whatever the server's culture is`` () =
+        // The JavaScript this copies has no culture, but .NET's IgnoreCase alone folds by the current one. Under
+        // Turkish, "I" lowercases to the dotless i, which no longer matches [a-z], so the two rules that split a
+        // letter from a digit stop splitting: "rowI1" would give "row-i1" where Rocket reads "row-i-1". A prop name
+        // no other test uses, so the kebab cache cannot answer from a value another test computed. A runtime with no
+        // ICU has no Turkish culture to disagree in, and skips it; the invariant case is covered by the Theory above.
+        tryWithTurkishCulture (fun () ->
+            renderOnMyEl (Rocket.propString ("rowI1Idle", "v"))
+            |> should equal """<my-el row-i-1-idle="v"></my-el>""")
+        |> ignore
+
     // Prop values: each helper writes what the matching codec reads (library/src/rocket/codecs.ts)
 
     [<Fact>]
@@ -67,6 +79,16 @@ module RocketTests =
         renderOnMyEl (Rocket.propNumber ("ratio", 1.5)) |> should equal """<my-el ratio="1.5"></my-el>"""
         renderOnMyEl (Rocket.propNumber ("delta", -2L)) |> should equal """<my-el delta="-2"></my-el>"""
         renderOnMyEl (Rocket.propNumber ("price", 9.99m)) |> should equal """<my-el price="9.99"></my-el>"""
+
+    [<Fact>]
+    let ``Rocket.propNumber refuses a value Rocket's number codec would turn into 0`` () =
+        // createNumberCodec in codecs.ts decodes with Number(value) and returns 0 unless the result is finite, so
+        // writing NaN or Infinity here would reach the component as 0 rather than as an error.
+        for value : float in [ Double.NaN; Double.PositiveInfinity; Double.NegativeInfinity; Single.NaN |> float ] do
+            let refused = Assert.Throws<ArgumentException>(fun () -> Rocket.propNumber ("n", value) |> ignore)
+            let message = refused.Message
+            if not (message.Contains "not a finite number") then failwith message
+            if not (message.Contains "turns anything that is not finite into 0") then failwith message
 
     [<Fact>]
     let ``Rocket.propNumber ignores the current culture`` () =

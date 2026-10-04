@@ -93,9 +93,10 @@ type Ds =
 
     /// <summary>
     /// Binds a signal to a property of a custom element or web component, instead of its default value or attribute.
-    /// Write the property name in kebab-case, because the HTML parser lowercases attribute names and Datastar turns the name back into camelCase.
-    /// A name with a capital letter in it does not work. The HTML parser lowercases it, and Datastar's camel case only
-    /// removes hyphens and uppercases what follows, so "someProp" arrives as "someprop" and stays that way.
+    /// Write the property name the way you would in F#, in camelCase. It is converted to the kebab-case attribute
+    /// Datastar expects, because the HTML parser lowercases attribute names and Datastar turns the name back into
+    /// camelCase: "someProp" is written as the __prop tag "some-prop". A name you write already in kebab-case is
+    /// left alone, so "some-prop" works too.
     /// https://data-star.dev/reference/attributes#data-bind
     /// </summary>
     /// <param name="signalPath">The signal to bind to</param>
@@ -588,10 +589,11 @@ type Ds =
     /// <summary>
     /// Creates a signal with a starting value of the signal's type. A text value is escaped.
     /// A browser signal stays in the browser, and a server signal is sent with requests: see <see cref="SignalScope"/>.
-    /// A Rocket component signal is refused here. Rocket scopes a signal to one instance of a component only for a
-    /// signal the component declared with $$('name', value) in its setup, and only inside that component, so anywhere
-    /// else the name would mean a page signal that two components share. Inside a component, declare the signal with
-    /// $$('name', value) and bind to it with <see cref="bind"/>, or write the expression with <c>Rocket.local</c>.
+    /// A Rocket component signal is written as the local name, which Rocket rewrites to the path of the component
+    /// instance that contains the element. The component can declare the signal in its setup with $$('name', value),
+    /// which is what lets JavaScript read it back through the component's own $, or it can leave it undeclared and
+    /// this attribute is what creates it for that instance. Render it inside the component either way: an attribute
+    /// outside any component is not rewritten, and there the name means a page signal.
     /// https://data-star.dev/reference/attributes#data-signals
     /// </summary>
     /// <param name="signal">The signal to create</param>

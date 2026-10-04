@@ -413,8 +413,8 @@ module Mutants =
               "subtraction becomes addition"
               "count - 1 would raise the count instead of lowering it"
               "Expr.fs"
-              "    let subtract (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> IFormattable = binary \"-\" left right"
-              "    let subtract (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> IFormattable = binary \"+\" left right"
+              "    let inline subtract (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> INumberBase<'n> = binary \"-\" left right"
+              "    let inline subtract (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> INumberBase<'n> = binary \"+\" left right"
 
           m
               "equality becomes a loose comparison"
@@ -455,8 +455,8 @@ module Mutants =
               "a binary operator loses its parentheses"
               "a nested operation would bind to only one operand"
               "Expr.fs"
-              "    let internal binary (operator:string) (Expr left) (Expr right) = Expr $\"({left} {operator} {right})\""
-              "    let internal binary (operator:string) (Expr left) (Expr right) = Expr $\"{left} {operator} {right}\""
+              "    let binary (operator:string) (Expr left) (Expr right) = Expr $\"({left} {operator} {right})\""
+              "    let binary (operator:string) (Expr left) (Expr right) = Expr $\"{left} {operator} {right}\""
 
           m
               "a negative number loses its parentheses"

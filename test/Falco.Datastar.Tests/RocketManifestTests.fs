@@ -146,6 +146,44 @@ module RocketManifestTests =
         |> should equal (Error (RocketManifestError.Missing ("name", "prop 2 of my-card")) : Result<RocketManifestDocument, RocketManifestError>)
 
     [<Fact>]
+    let ``RocketManifest.parse says a property of the wrong kind, rather than reading it as absent`` () =
+        // A missing property and a property of the wrong kind are different claims about the manifest. Reading
+        // "required":"yes" as false, or a numeric bubbles as absent, would report something the manifest never said.
+        RocketManifest.parse (wrap """{"tag":"my-card","props":[{"name":"count","attribute":"count","type":"number","default":0,"required":"yes"}]}""")
+        |> should equal (Error (RocketManifestError.WrongKind ("required", "true or false", "the prop \"count\" of my-card")) : Result<RocketManifestDocument, RocketManifestError>)
+
+    [<Fact>]
+    let ``RocketManifest.parse reports a wrong kind for every optional property it reads`` () =
+        // required, bubbles, composed, kind, description, label, control and placeholder are all read the same way.
+        for ((manifest:string), (expected:string * string * string)) in
+            [ """{"tag":"my-card","props":[{"name":"a","attribute":"a","type":"string","default":"","required":1}]}""", ("required", "true or false", "the prop \"a\" of my-card")
+              """{"tag":"my-card","events":[{"name":"a","bubbles":"yes"}]}""", ("bubbles", "true or false", "the event \"a\" of my-card")
+              """{"tag":"my-card","events":[{"name":"a","composed":"yes"}]}""", ("composed", "true or false", "the event \"a\" of my-card")
+              """{"tag":"my-card","events":[{"name":"a","kind":5}]}""", ("kind", "text", "the event \"a\" of my-card")
+              """{"tag":"my-card","slots":[{"name":"a","description":5}]}""", ("description", "text", "the slot \"a\" of my-card")
+              """{"tag":"my-card","props":[{"name":"a","attribute":"a","type":"string","default":"","docs":{"label":5}}]}""", ("label", "text", "the prop \"a\" of my-card") ] do
+            match RocketManifest.parse (wrap manifest) with
+            | Error (RocketManifestError.WrongKind (name, kind, place)) ->
+                if (name, kind, place) <> expected then
+                    failwith $"expected {expected}, got {name} / {kind} / {place}"
+            | other -> failwith $"expected WrongKind, got %A{other}"
+
+    [<Fact>]
+    let ``Request.getRocketManifests refuses a body that is not valid UTF-8`` () =
+        // Encoding.UTF8 substitutes U+FFFD for a byte it cannot decode and carries on, so bytes that are not
+        // valid UTF-8 would arrive with a tag name or a doc string quietly altered and then parse as a manifest.
+        // Here a lone 0xFF sits inside the tag name, where U+FFFD would make it a different, valid name.
+        let bytes = Encoding.UTF8.GetBytes(wrap """{"tag":"my-""") |> fun prefix ->
+            Array.append prefix [| 0xFFuy; 0x22uy; 0x7Duy; 0x5Duy; 0x7Duy |]
+        let ctx = DefaultHttpContext()
+        ctx.Request.Method <- "POST"
+        ctx.Request.Body <- new MemoryStream(bytes)
+        match (Request.getRocketManifests ctx).GetAwaiter().GetResult() with
+        | Error (RocketManifestError.NotJson reason) ->
+            if not (reason.Contains "not valid UTF-8") then failwith reason
+        | other -> failwith $"expected NotJson, got %A{other}"
+
+    [<Fact>]
     let ``Request.getRocketManifests refuses a body that is larger than one mebibyte`` () =
         let ctx = DefaultHttpContext()
         ctx.Request.Method <- "POST"

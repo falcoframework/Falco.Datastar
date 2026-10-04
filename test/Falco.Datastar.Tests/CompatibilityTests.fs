@@ -47,6 +47,34 @@ module CompatibilityTests =
             [ Rocket.templateIf (Expr.read on, [ Text.raw "on" ])
               Rocket.forEach (Expr.read (Signal.rocket<string list> "items"), fun item _ -> [ Elem.li [ Ds.text item ] [] ]) ]
 
+    // A Rocket signal in an attribute name. Rocket's rewriteDataAttributes scopes a data-signals:NAME key to the
+    // component's own path whether or not the setup declared NAME, so this is a supported use and not an error.
+    let private rocketSignalInAttribute =
+        Elem.div
+            [ Ds.signal (on, false)
+              Ds.bind on
+              Ds.computed (Signal.rocket<bool> "shown", Expr.read on)
+              Ds.indicator (Signal.rocket<bool> "busy") ]
+            []
+
+    // The numeric operators are constrained to the types JavaScript's number type stands for. IFormattable was not
+    // enough: string, DateTime and Guid all satisfy it, and $a + $b on those is meaningless JavaScript. These are the
+    // types that have to keep working. This file can show that; it cannot show that the others are refused, because
+    // FsUnit cannot assert that code failed to compile.
+    let private numericOperatorsOnNumbers =
+        [ Expr.toString (Expr.add (Expr.read (Signal.browser<int> "i")) (Expr.int 5))
+          Expr.toString (Expr.subtract (Expr.read (Signal.browser<double> "d")) (Expr.unsafeRaw "5"))
+          Expr.toString (Expr.multiply (Expr.read (Signal.browser<decimal> "m")) (Expr.unsafeRaw "5"))
+          Expr.toString (Expr.divide (Expr.read (Signal.browser<int64> "l")) (Expr.unsafeRaw "5"))
+          Expr.toString (Expr.remainder (Expr.read (Signal.browser<float32> "f")) (Expr.unsafeRaw "5"))
+          Expr.toString (Expr.greater (Expr.read (Signal.browser<float> "s")) (Expr.unsafeRaw "5"))
+          Expr.toString (Expr.less (Expr.read (Signal.browser<uint32> "u")) (Expr.unsafeRaw "5")) ]
+
+    let private numericProps =
+        [ Rocket.propNumber ("n", 1)
+          Rocket.propNumber ("d", 1.5m)
+          Rocket.propNumber ("f", 2.5f) ]
+
     /// The names of these are not used. They exist so that the compiler has to check them.
     let internal checkEverything () =
         [ box stringOverloadWorks
@@ -56,4 +84,7 @@ module CompatibilityTests =
           box (click "$x = 1")
           box (clickWithStatement (Stmt.get "/x"))
           box typedUsage
-          box rocketUsage ]
+          box rocketUsage
+          box rocketSignalInAttribute
+          box numericOperatorsOnNumbers
+          box numericProps ]

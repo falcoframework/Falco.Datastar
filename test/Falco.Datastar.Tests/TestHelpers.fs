@@ -23,6 +23,29 @@ module TestHelpers =
         finally
             CultureInfo.CurrentCulture <- original
 
+    /// Runs the function in Turkish, where "I" lowercases to the dotless i U+0131. That one difference makes .NET's
+    /// culture-sensitive case-insensitive Regex stop matching an I against [a-z], while JavaScript, which has no
+    /// culture, keeps matching it. Returns false, without running, when the runtime has no ICU data to build the
+    /// culture, so a slim CI image skips the test rather than passing it for the wrong reason.
+    let tryWithTurkishCulture (run: unit -> unit) =
+        let turkish =
+            try Some (CultureInfo.GetCultureInfo "tr-TR")
+            with :? CultureNotFoundException -> None
+        match turkish with
+        | None -> false
+        | Some turkish ->
+            let original = CultureInfo.CurrentCulture
+            try
+                CultureInfo.CurrentCulture <- turkish
+                // Confirm the runtime really does fold the I to the dotless i, or the test would prove nothing.
+                if Char.ToLower 'I' <> '\u0131' then
+                    false
+                else
+                    run ()
+                    true
+            finally
+                CultureInfo.CurrentCulture <- original
+
     /// What a JavaScript parser does with a single-quoted string literal such as 'it\'s': the text that it stands for.
     /// It fails when the literal is not valid, which is when an unescaped quote ends it early or a raw line break is in it.
     let readJsLiteral (literal:string) =

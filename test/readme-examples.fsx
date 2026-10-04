@@ -77,7 +77,8 @@ let private referenceLines () =
     |> Array.sort
     |> Array.map (fun path -> sprintf "#r @\"%s\"" path)
 
-/// The `fsharp` blocks of each document, with the line each one starts on
+/// The `fsharp` blocks of each document, with the file, the line each one starts on, and whether the block asked to be
+/// left alone with a README-EXCERPT comment.
 let private examples () =
     documents
     |> List.map (fun name -> Path.Combine(repository, name))
@@ -87,39 +88,37 @@ let private examples () =
         Regex.Matches(text, "(?ms)^```fsharp\r?\n(.*?)^```")
         |> Seq.cast<Match>
         |> Seq.map (fun block ->
-            Path.GetFileName path, text.Substring(0, block.Index).Split('\n').Length, block.Groups.[1].Value)
+            let code = block.Groups.[1].Value
+            // The marker is read from the block itself, so marking one is visible where a reader will look for it.
+            let isExcerpt = code.Contains "README-EXCERPT"
+            Path.GetFileName path, text.Substring(0, block.Index).Split('\n').Length, code, isExcerpt)
         |> Seq.toList)
 
-/// A block stands on its own when it starts an item, rather than showing HTML or the middle of an expression
-let private isWholeItem (code: string) = code.TrimStart().StartsWith "let "
-
-/// Some blocks are written to continue from earlier ones, so they name something the reader has just seen rather than
-/// defining it. Those cannot be checked on their own and are listed here with why. Each is a deliberate exclusion, so
-/// that a block that stops being one of these stops being skipped.
-let private excerpts =
-    [ // Uses the handleIndex defined in the example above it
-      "let endpoints ="
-      // Uses a counter the reader is expected to have of their own
-      "let handleUpdates : HttpHandler"
-      // Continues a handler whose context was named in an earlier block
-      "let nonce = \"...\""
-      // Wraps a handler in parentheses, which is an expression and not an item
-      "let httpHandler : HttpHandler = (fun ctx"
-      // Continues the patch options example, which ends in a call
-      "let appendRows ="
-      // Wraps a handler in parentheses, as the example above it does
-      "let handleStream = (fun ctx" ]
-
-/// Whether a block is one of those, matched on its first line so that a reworded body does not change the answer
-let private isExcerpt (code: string) =
-    let firstLine = code.TrimStart().Split('\n').[0].Trim()
-    excerpts |> List.exists (fun opening -> firstLine.StartsWith opening)
-
-/// The blocks to check. A document that has gone missing, or that lost its examples, would make this silently empty,
-/// so the count is checked rather than trusted.
+/// The blocks to check. Every block is checked unless it carries the README-EXCERPT marker, so a block that cannot
+/// stand on its own has to say so where the reader can see it, and a block that stops needing to says so by deleting
+/// one comment line.
+///
+/// Nothing else decides what is skipped. Deciding from the shape of the code skipped most of the README without saying
+/// so: a block beginning `open`, `type`, `match`, or any expression rather than `let` was quietly left unchecked while
+/// the output said how many blocks were checked, which read as coverage.
 let private toCheck =
     examples ()
-    |> List.filter (fun (_, _, code) -> isWholeItem code && not (isExcerpt code))
+    |> List.filter (fun (_, _, _, isExcerpt) -> not isExcerpt)
+
+/// The blocks that asked to be left alone, with the reason written in the marker. Listed so the output says what was
+/// not checked, rather than only what was.
+let private excerpts =
+    examples ()
+    |> List.filter (fun (_, _, _, isExcerpt) -> isExcerpt)
+    |> List.map (fun (file, line, code, _) ->
+        // The reason is the block's own comment, so that marking a block says why in the place a reader will look.
+        let reason =
+            code.Split([| '\n'; '\r' |], StringSplitOptions.RemoveEmptyEntries)
+            |> Array.map (fun source -> source.Trim())
+            |> Array.filter (fun source -> source.StartsWith "//")
+            |> Array.map (fun source -> source.Substring(2).Trim())
+            |> String.concat " "
+        file, line, reason)
 
 printfn "checking %d example blocks from %s" toCheck.Length (String.concat ", " documents)
 
@@ -147,29 +146,45 @@ let private check (code: string) =
         let scratch = Path.Combine(Path.GetTempPath(), "readme-example.fsx")
         let contents = String.concat "\n" ((referenceLines () |> List.ofArray) @ before @ [ code ])
         File.WriteAllText(scratch, contents)
-        let start = Diagnostics.ProcessStartInfo("dotnet", sprintf "fsi --nologo --quiet %s" scratch)
+        // `dotnet fsi --use:file.fsx` loads the file into a session. Loading type-checks it, which is what this is for,
+        // and the script is then never evaluated, so a block that calls .Run() does not start a web server. Running the
+        // file instead, as this did, bound port 5000 and every block after it failed with AddressInUseException.
+        let start = Diagnostics.ProcessStartInfo("dotnet", sprintf "fsi --nologo --quiet --use:%s" scratch)
         start.RedirectStandardOutput <- true
         start.RedirectStandardError <- true
         use started = Diagnostics.Process.Start start
-        let output = started.StandardOutput.ReadToEnd()
-        let errors = started.StandardError.ReadToEnd()
+        // Both reads start before either is awaited. Reading stdout to the end first deadlocks as soon as stderr
+        // fills its pipe while nothing is draining it, which a block with many errors does. The child deadlocks
+        // instead of this one, and CI hangs rather than reporting.
+        let output = started.StandardOutput.ReadToEndAsync()
+        let errors = started.StandardError.ReadToEndAsync()
         started.WaitForExit()
         let succeeded = started.ExitCode = 0
+        let text = (output.Result + errors.Result).Trim()
         File.Delete scratch
-        if succeeded then [||] else [| (output + errors).Trim() |]
+        if succeeded then [||] else [| text |]
 
     attempt opening
 
 
 let verbose =
     Environment.GetCommandLineArgs() |> Array.exists (fun argument -> argument = "--verbose")
+
+// Always reported, not only with --verbose: a block that is not checked is a gap in what this proves, and the only way
+// to see the whole picture is for it to be in the output every run.
+if excerpts.Length > 0 then
+    printfn "not checked, marked README-EXCERPT:"
+    for (file, line, reason) in excerpts do
+        printfn "  %s:%d  %s" file line reason
+
 if verbose then
-    for (file, line, _) in toCheck do
+    printfn "checking:"
+    for (file, line, _, _) in toCheck do
         printfn "  %s:%d" file line
 
 let broken =
     toCheck
-    |> List.choose (fun (file, line, code) ->
+    |> List.choose (fun (file, line, code, _) ->
         match check code with
         | [||] -> None
         | errors -> Some(file, line, errors))

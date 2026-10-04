@@ -38,6 +38,9 @@ Code that passes an argument whose type is not yet known, such as `let click han
 Add a type annotation: `let click (handler: string) = ...`. Code that passes a string or a typed value directly needs no change. `Ds.signal` is also no longer `inline`, which changes nothing for callers.
 The examples above are compiled as part of the test suite, so the compiler checks this advice stays true.
 
+**The arithmetic operators and `Rocket.propNumber` now need a numeric type.** They used to take anything that was `IFormattable`, which `string`, `DateTime`, `DateTimeOffset`, `Guid` and `TimeSpan` all are, so `Expr.add` on a `Signal<string>` compiled and produced `$a + $b`. They now need a type that JavaScript's number type stands for: `int`, `int64`, `int16`, `sbyte`, `byte`, `uint16`, `uint32`, `uint64`, `float`, `float32`, `double`, `decimal` or `bigint`. Anything else fails with FS0001.
+Code that was adding up something that is not a number was already writing meaningless JavaScript, so no working code changes. If you need text, use `Expr.concat`.
+
 #### Changes that produce warnings
 
 Three types have a new case: `BackendAction.Query`, `RequestCancellation.Cleanup` and `OnEventModifier.Document`.
@@ -59,6 +62,16 @@ match msg with
 A module or type of your own called `Rocket` does not clash.
 
 #### Changes that compile but produce different output
+
+**`RocketManifest.parse` says a property of the wrong kind instead of reading it as absent.** `"required":"yes"` was read as `Required = false`, and a numeric `bubbles` disappeared, which are different claims from the ones the manifest makes. Those properties now give `WrongKind`, naming the property and where it is: a prop's `required`, `docs.description`, `docs.label`, `docs.control` and `docs.placeholder`, a slot's `description`, and an event's `kind`, `bubbles`, `composed` and `description`. A property that is absent, or `null`, is still read as absent. A manifest Rocket wrote is not affected.
+
+**`Rocket.propNumber` refuses a value that is not a finite number.** Rocket's number codec runs `Number(value)` and turns anything that is not finite into `0`, so `Double.NaN` and the infinities reached the component as `0` rather than as an error. They now raise an `ArgumentException` that says so.
+
+**A line separator after a backslash in a signals filter is escaped.** U+2028 and U+2029 are line terminators, and a JavaScript regular expression literal cannot contain one, so `SignalsFilter.Include "a\\<U+2028>b"` used to write a literal that does not parse, and the whole filter expression failed. It now writes `\u2028`, as it already did for a separator that had no backslash in front of it.
+
+**A prop name gets the same attribute name whatever the server's culture is.** Datastar's kebab function has no culture, but the two case-insensitive regexes it was copied into folded by .NET's current culture. Under Turkish, `"rowI1"` became `row-i1` where Rocket reads `row-i-1`, and the attribute name is cached, so the wrong name was kept for the life of the process. Both now fold the way JavaScript does.
+
+**`Request.getRocketManifests` refuses a body that is not valid UTF-8.** `Encoding.UTF8` replaces a byte it cannot decode with U+FFFD and carries on, so a body that was not valid UTF-8 arrived with a tag name or a documentation string quietly altered, and then parsed as a manifest. It now decodes strictly and returns `NotJson` for such a body. A manifest Rocket wrote is not affected.
 
 **Text in expressions is escaped.** `Ds.get`, `Ds.post`, `Ds.put`, `Ds.patch`, `Ds.delete` and `Ds.query` now escape the URL, and `Ds.signal` escapes its value.
 A URL such as `/items?a=1&b=2` is written with `&amp;`, which the browser reads as `&`. Before, a `'` in a URL or in a text value broke the expression, and text from a user could run code.
@@ -116,9 +129,7 @@ Some names used to be accepted and never worked. They now raise an `ArgumentExce
 - A typed signal name, from `Signal.browser`, `Signal.server`, `Signal.rocket` and `Signal.tryCreate`: a part cannot start with a capital letter, end with an underscore, or have two underscores in a row. HTML makes attribute names lower case, so `Signal.server<int> "Menu"` was declared as `menu` and read as `$Menu`.
 - `Rocket.forEach` needs item and index names that are JavaScript identifiers, and `Stmt.all` needs at least one statement.
 
-**A `Signal.rocket` is no longer accepted where a signal name goes into an attribute.** `Ds.signal`, `Ds.bind`, `Ds.computed` and `Ds.indicator` raise an `ArgumentException` for one. The typed overloads used to write it as `data-signals:count`, which is the same text a `Signal.server "count"` writes: Rocket rewrites such an attribute to the component's own signal only for a signal the component declared with `$$('name', value)` in its setup, and only inside that component, so anywhere else the name quietly became a page signal and two components would share it. Reading a Rocket signal in an expression is unchanged and still writes `$$name`.
-
-Inside a component, use `Rocket.local` in an expression, or declare the signal in the component's `setup` and bind to it with `Ds.bind "name"`. To write the initial value, use `Ds.signal (SignalPath.sp "name", value)`, which is what the string helper has always done.
+Reading a Rocket signal in an expression is unchanged and still writes `$$name`.
 
 `Signal.tryCreate` returns a `SignalNameError` instead of text. `RocketManifest.parse` and `Request.getRocketManifests` return a `RocketManifestError`. `Request.getRocketManifests` also returns `ConnectionFailed` and `Cancelled` when the connection fails or the request is cancelled, instead of throwing.
 `SignalScope`, `SignalNameError` and `RocketManifestError` are `RequireQualifiedAccess`, so their cases do not clash with your names.

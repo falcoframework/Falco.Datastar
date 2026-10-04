@@ -1,6 +1,7 @@
 namespace Falco.Datastar
 
 open System
+open System.Numerics
 open System.Text.RegularExpressions
 
 // Signals, expressions and statements written in F# instead of JavaScript strings.
@@ -143,36 +144,28 @@ module Signal =
         | SignalScope.Server -> "$" + path signal
 
     /// <summary>
-    /// The name to put in an attribute key, refusing a Rocket signal when there is no component to scope it to.
+    /// The name to put in an attribute key, which for a Rocket component signal is the local name Rocket scopes.
     /// </summary>
     /// <remarks>
-    /// Datastar's Rocket rewrites data-bind, data-computed, data-indicator, data-ref and data-signals to the
-    /// component's own path, but only for signals the component declared with $$('name', value) in its setup, and only
-    /// inside a component. Outside one, or for a name that was never declared, the name is used exactly as written,
-    /// which is the same as a page signal. Accepting it silently is the kind of divergence that is only noticed when
-    /// two components share state, so it is refused here instead: a Rocket signal is written with
-    /// <c>Rocket.local</c> or <c>Rocket.call</c> inside the component, where its meaning is real.
+    /// Rocket's rewriteDataAttributes turns a data-signals:NAME key into data-signals:SIGNAL_PATH_BASE.NAME, and does
+    /// the same for the key of data-bind, data-computed and data-indicator, for every element in the component's
+    /// subtree. It does this whether or not the component's setup ever declared the name: a name the setup did
+    /// declare is mapped through the component's local signals instead, and either way the result is scoped to that
+    /// one component instance, so two instances of the same component never share it.
+    ///
+    /// That means a Rocket signal is correct in an attribute key, and refusing it would push a valid use back to the
+    /// string helpers. What the scoping needs is a component: render the attribute inside the component's own children
+    /// or render output, because the rewrite only walks those. An attribute outside any component is left exactly as
+    /// written, so there the name means a page signal, which is a context to get right rather than an error to raise.
     /// </remarks>
-    let attributeName (what: string) (signal:Signal<'T>) =
+    let attributeName _what (signal:Signal<'T>) =
         match signal.Scope with
-        | SignalScope.RocketComponent ->
-            raise (
-                ArgumentException(
-                    $"{what} was given a Rocket component signal '{signal.Name}', which cannot be written as an attribute name."
-                    + " Rocket rewrites that name to the component's own signal only for a signal the component declared"
-                    + " with $$('name', value), and only inside the component, so anywhere else the name would mean"
-                    + " a page signal and two components would share it."
-                    + " Inside the component use Rocket.local or Rocket.call, or declare the signal with $$('name', value)"
-                    + " and bind to it with Ds.bind.",
-                    what
-                )
-            )
+        | SignalScope.RocketComponent -> signal.Name
         | SignalScope.Browser
         | SignalScope.Server -> path signal
 
 /// An expression that has a value of type 'T. Build it with the functions in the Expr module.
 type Expr<'T> = private Expr of string
-
 /// Something that is done and gives no value, such as setting a signal or calling a backend action. Build it with the functions in the Stmt module.
 type Stmt = private Stmt of string
 
@@ -234,28 +227,31 @@ module Expr =
         let safe = Js.attrEncode javaScript
         Expr (match isSingleName javaScript with | true -> safe | false -> $"({safe})")
 
-    let internal binary (operator:string) (Expr left) (Expr right) = Expr $"({left} {operator} {right})"
+    /// Joins two expressions with a JavaScript operator, in parentheses. The operators are written with spaces on
+    /// purpose: Datastar reads $a-1 as a signal called a-1.
+    let binary (operator:string) (Expr left) (Expr right) = Expr $"({left} {operator} {right})"
 
-    // The operators are written with spaces on purpose: Datastar reads $a-1 as a signal called a-1.
 
     /// Adds two numbers. To join text, use concat.
-    let add (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> IFormattable = binary "+" left right
+    let inline add (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> INumberBase<'n> = binary "+" left right
     /// Subtracts. Example: <c>Expr.subtract (Expr.read count) (Expr.int 5)</c> is <c>($_count - 5)</c>.
-    let subtract (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> IFormattable = binary "-" left right
+    let inline subtract (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> INumberBase<'n> = binary "-" left right
     /// Multiplies. Example: <c>Expr.multiply (Expr.read count) (Expr.int 5)</c> is <c>($_count * 5)</c>.
-    let multiply (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> IFormattable = binary "*" left right
+    let inline multiply (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> INumberBase<'n> = binary "*" left right
 
-    let private isWholeNumber<'n> () =
+    /// True for the whole-number types, whose JavaScript quotient this cuts to a whole number to match.
+    /// Written as a type test on a boxed value, because a generic typeof is not available to an inline function.
+    let isWholeNumber (value: obj) =
         [ typeof<int>; typeof<int64>; typeof<int16>; typeof<sbyte>; typeof<byte>; typeof<uint16>; typeof<uint32>; typeof<uint64>; typeof<bigint> ]
-        |> List.contains typeof<'n>
+        |> List.contains (value.GetType())
 
     /// Divides two numbers. JavaScript has one kind of number, so 7 / 2 is 3.5 there. When the numbers are whole, such as int, the result is cut to a whole number too.
-    let divide (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> IFormattable =
-        match binary "/" left right, isWholeNumber<'n> () with
+    let divide (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> INumberBase<'n> =
+        match binary "/" left right, isWholeNumber (box (Unchecked.defaultof<'n>)) with
         | Expr quotient, true -> Expr $"Math.trunc{quotient}"
         | quotient, false -> quotient
     /// The remainder of a division. Example: <c>Expr.remainder (Expr.read count) (Expr.int 5)</c> is <c>($_count % 5)</c>.
-    let remainder (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> IFormattable = binary "%" left right
+    let inline remainder (left:Expr<'n>) (right:Expr<'n>) : Expr<'n> when 'n :> INumberBase<'n> = binary "%" left right
 
     /// Is the left value greater than the right one? Example: <c>Expr.greater (Expr.read count) (Expr.int 5)</c> is <c>($_count &gt; 5)</c>.
     let greater (left:Expr<'n>) (right:Expr<'n>) : Expr<bool> when 'n : comparison = binary ">" left right

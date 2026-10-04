@@ -364,28 +364,22 @@ module ExprTests =
         renderAttr (Ds.signal (firstName, "Ada")) |> should equal """<div data-signals:form.first-name="'Ada'"></div>"""
 
     [<Fact>]
-    let ``Ds.signal refuses a Rocket component signal, because the name would mean a page signal`` () =
-        // Rocket scopes an attribute's signal name to one instance only for a signal the component declared with
-        // $$('name', value) in its setup, and only inside that component. Anywhere else the name would be a page
-        // signal, and two components would quietly share it, so it is refused rather than written.
-        let refused = Assert.Throws<ArgumentException>(fun () -> Ds.signal (isOn, false) |> ignore)
-        let message = refused.Message
-        if not (message.Contains "Rocket component signal") then failwith message
-        if not (message.Contains "two components would share it") then failwith message
+    let ``Ds.signal writes a Rocket component signal as the local name Rocket scopes`` () =
+        // Rocket's rewriteDataAttributes prefixes a data-signals:NAME key with the component's own signal path,
+        // whether or not the component's setup declared NAME, so writing the plain local name is what lets Rocket
+        // scope it. A declared name is mapped through the component's local signals; an undeclared one still gets
+        // the component's path. Either way two instances do not share it.
+        renderAttr (Ds.signal (isOn, false)) |> should equal """<div data-signals:on="false"></div>"""
 
     [<Fact>]
-    let ``Ds.bind, Ds.computed and Ds.indicator refuse a Rocket component signal too`` () =
-        for name, build in
-            [ "Ds.bind", fun () -> Ds.bind (isOn : Signal<bool>) |> ignore
-              "Ds.computed", fun () -> Ds.computed (isOn, Expr.bool true) |> ignore
-              "Ds.indicator", fun () -> Ds.indicator (Signal.rocket<bool> "open") |> ignore ] do
-            let refused = Assert.Throws<ArgumentException>(build)
-            let message = refused.Message
-            if not (message.Contains name) then failwith $"the message does not name the helper: {message}"
+    let ``Ds.bind, Ds.computed and Ds.indicator write a Rocket signal the same way`` () =
+        renderAttr (Ds.bind (isOn : Signal<bool>)) |> should equal """<div data-bind:on></div>"""
+        renderAttr (Ds.computed (isOn, Expr.bool true)) |> should equal """<div data-computed:on="true"></div>"""
+        renderAttr (Ds.indicator (Signal.rocket<bool> "open")) |> should equal """<div data-indicator:open></div>"""
 
     [<Fact>]
-    let ``a Rocket signal still reads as two dollars in an expression, which is how it is used`` () =
-        // The refusal is only about attribute names. Reading it in an expression is the thing Rocket scopes, so it works
+    let ``a Rocket signal reads as two dollars in an expression`` () =
+        // Reading it in an expression is the thing Rocket scopes directly, so it keeps the $$ prefix.
         Expr.toString (Expr.read isOn) |> should equal "$$on"
         Stmt.toString (Stmt.set isOn (Expr.bool true)) |> should equal "$$on = true"
 
