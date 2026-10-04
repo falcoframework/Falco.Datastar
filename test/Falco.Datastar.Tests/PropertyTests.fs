@@ -92,7 +92,8 @@ module PropertyTests =
     // the pieces the name rules care about, and each one counts what it accepted and fails when there were too few.
     // Otherwise a generator that produced nothing usable would look like a pass.
 
-    let private scopes = [| SignalScope.Browser; SignalScope.Server; SignalScope.RocketComponent |]
+    // Rocket is not here: a Rocket signal cannot be written as an attribute name, which the tests below say
+    let private scopes = [| SignalScope.Browser; SignalScope.Server |]
 
     /// The three rules below are only worth anything if the names they run over are a mix of accepted and refused.
     /// This measures that, so that a change to the generator or to the rules cannot quietly make them vacuous.

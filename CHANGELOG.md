@@ -114,6 +114,10 @@ Some names used to be accepted and never worked. They now raise an `ArgumentExce
 - A typed signal name, from `Signal.browser`, `Signal.server`, `Signal.rocket` and `Signal.tryCreate`: a part cannot start with a capital letter, end with an underscore, or have two underscores in a row. HTML makes attribute names lower case, so `Signal.server<int> "Menu"` was declared as `menu` and read as `$Menu`.
 - `Rocket.forEach` needs item and index names that are JavaScript identifiers, and `Stmt.all` needs at least one statement.
 
+**A `Signal.rocket` is no longer accepted where a signal name goes into an attribute.** `Ds.signal`, `Ds.bind`, `Ds.computed` and `Ds.indicator` raise an `ArgumentException` for one. The typed overloads used to write it as `data-signals:count`, which is the same text a `Signal.server "count"` writes: Rocket rewrites such an attribute to the component's own signal only for a signal the component declared with `$$('name', value)` in its setup, and only inside that component, so anywhere else the name quietly became a page signal and two components would share it. Reading a Rocket signal in an expression is unchanged and still writes `$$name`.
+
+Inside a component, use `Rocket.local` in an expression, or declare the signal in the component's `setup` and bind to it with `Ds.bind "name"`. To write the initial value, use `Ds.signal (SignalPath.sp "name", value)`, which is what the string helper has always done.
+
 `Signal.tryCreate` returns a `SignalNameError` instead of text. `RocketManifest.parse` and `Request.getRocketManifests` return a `RocketManifestError`. `Request.getRocketManifests` also returns `ConnectionFailed` and `Cancelled` when the connection fails or the request is cancelled, instead of throwing.
 `SignalScope`, `SignalNameError` and `RocketManifestError` are `RequireQualifiedAccess`, so their cases do not clash with your names.
 

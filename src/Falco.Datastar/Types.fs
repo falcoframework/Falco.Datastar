@@ -331,11 +331,17 @@ type OnEventModifier =
     | ViewTransition
 
 /// The casing Datastar gives to the name an attribute creates. Write it with its type name, e.g. CaseStyle.Snake
+/// <remarks>
+/// Datastar's own case functions are camel, snake and pascal. It has no kebab function, and that is deliberate: for a
+/// class or an event name the HTML parser has already lowercased the attribute key, so "keeping it as written" is what
+/// preserves the hyphens the author put there. Kebab therefore asks Datastar for exactly that, and it is the default
+/// Datastar already applies to data-class and data-on, so asking for it there changes nothing.
+/// </remarks>
 [<RequireQualifiedAccess>]
 type CaseStyle =
     /// mySignal
     | Camel
-    /// my-signal
+    /// my-signal, which Datastar produces by leaving the name as written
     | Kebab
     /// my_signal
     | Snake

@@ -191,7 +191,7 @@ A `Signal<'T>` has a type and a kind. The kind decides whether Datastar sends th
 
 - `Signal.browser<'T> "name"` stays in the browser. Datastar never sends it, because its name starts with an underscore, which the function adds for you. Use it for what the user does on the page.
 - `Signal.server<'T> "name"` is sent with every request. Use it for new state that the backend needs, such as the value of a form input.
-- `Signal.rocket<'T> "name"` belongs to one instance of a [Rocket component](#rocket-components). Rocket keeps these under a private `_rocket` path, so Datastar never sends them.
+- `Signal.rocket<'T> "name"` belongs to one instance of a [Rocket component](#rocket-components). Rocket keeps these under a private path, so Datastar never sends them. It is refused by the helpers that put a name in an attribute, because a component's own signal only exists where the component declared it, and elsewhere the name would quietly mean a page signal that two components share.
 
 ```fsharp
 let count = Signal.browser<int> "count"
@@ -886,17 +886,19 @@ The children of a light-DOM component (`mode: 'light'`), and the component's own
 In an open shadow-DOM component, `Rocket.local` and `Rocket.root` also work in the children that the server rendered.
 Rocket rewrites `$$name` into a path that is unique to that instance, so two instances do not share it. It rewrites `@name(...)` into a call to the action registered with `action('name', fn)` in the component's `setup`, or, if there is none, into a call to the Datastar action with that name.
 
-The typed way declares the signal in F#, so the state needs no JavaScript:
+The typed way declares the signal in F#, so the state needs no JavaScript. The component declares it with `$$('on', false)` in its `setup`, and the page binds to that declared name:
 
 ```fsharp
-let isOn = Signal.rocket<bool> "on"
+// In the component's setup: $('my-toggle', { setup: (ctx) => { ctx.store('on', false) ... } })
+// where the store key is the local signal. The server renders the tag and binds to it by name.
 
 Elem.create "my-toggle" [ Attr.id "toggle" ] [
-    Elem.div [ Ds.signal (isOn, false) ] []
-    Elem.button [ Ds.onClick (Stmt.toggle isOn) ] [ Text.raw "Toggle" ]
-    Elem.p [ Ds.show (Expr.read isOn) ] [ Text.raw "Now you see me." ]
+    Elem.button [ Ds.onClick (Rocket.call "toggle") ] [ Text.raw "Toggle" ]
+    Elem.p [ Ds.show (Rocket.local "on") ] [ Text.raw "Now you see me." ]
 ]
 ```
+
+`Signal.rocket` reads as `$$name` in an expression, which is how the string helpers above refer to a component's own signal. It is refused by `Ds.signal`, `Ds.bind`, `Ds.computed` and `Ds.indicator`, because those write a name into an attribute key and Rocket only rewrites such a key for a signal the component actually declared. Write the name with `Rocket.local` in an expression, or declare the signal in the component and bind to it with `Ds.bind "on"`.
 
 Define the tag with `rocket('my-toggle', { mode: 'light' })`. It needs no props, setup or render function. Two instances keep separate state: toggling one leaves the other alone.
 The string helpers do the same, with an action that you register in JavaScript:

@@ -5,6 +5,7 @@ open Falco
 open Falco.Markup
 open Falco.Routing
 open Falco.Datastar
+open Falco.Datastar.SignalPath
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.ResponseCompression
 open Microsoft.Extensions.DependencyInjection
@@ -76,10 +77,12 @@ let counterElement count =
         []
 
 // Each section keeps its own `open` state. It is a Rocket component signal, so two sections do not share it.
+// The component declares it with $$('open', false) in its setup, so the name goes into the attribute as a plain
+// signal path; Signal.rocket is for reading it in an expression, which writes $$open.
 let section id' title =
     let isOpen = Signal.rocket<bool> "open"
     Elem.create "my-toggle" [ Attr.id id' ] [
-        Elem.div [ Ds.signal (isOpen, false) ] []
+        Elem.div [ Ds.signal (SignalPath.sp "open", false) ] []
         Elem.button
             [ Attr.id $"{id'}-button"
               Ds.onClick (Stmt.toggle isOpen)

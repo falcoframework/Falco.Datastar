@@ -163,7 +163,8 @@ module ExprTests =
         Dst.run "Every name that is accepted" (fun generator ->
             // A longer name than the shared generator draws, so that a deep dotted path is covered as well as a short one
             let alphabet = [| "a"; "b"; "c"; "X"; "Y"; "Z"; "0"; "1"; "9"; "_"; "-"; "."; "$"; " " |]
-            let scopes = [| SignalScope.Browser; SignalScope.Server; SignalScope.RocketComponent |]
+            // Rocket is not here: a Rocket signal cannot be written as an attribute name, which the tests above say
+            let scopes = [| SignalScope.Browser; SignalScope.Server |]
             let mutable accepted = 0
             for _ in 1 .. 1200 do
                 let name =
@@ -362,8 +363,30 @@ module ExprTests =
         renderAttr (Ds.signal (firstName, "Ada")) |> should equal """<div data-signals:form.first-name="'Ada'"></div>"""
 
     [<Fact>]
-    let ``Ds.signal declares a Rocket component signal by its plain name, which Rocket scopes to the instance`` () =
-        renderAttr (Ds.signal (isOn, false)) |> should equal """<div data-signals:on="false"></div>"""
+    let ``Ds.signal refuses a Rocket component signal, because the name would mean a page signal`` () =
+        // Rocket scopes an attribute's signal name to one instance only for a signal the component declared with
+        // $$('name', value) in its setup, and only inside that component. Anywhere else the name would be a page
+        // signal, and two components would quietly share it, so it is refused rather than written.
+        let refused = Assert.Throws<ArgumentException>(fun () -> Ds.signal (isOn, false) |> ignore)
+        let message = refused.Message
+        if not (message.Contains "Rocket component signal") then failwith message
+        if not (message.Contains "two components would share it") then failwith message
+
+    [<Fact>]
+    let ``Ds.bind, Ds.computed and Ds.indicator refuse a Rocket component signal too`` () =
+        for name, build in
+            [ "Ds.bind", fun () -> Ds.bind (isOn : Signal<bool>) |> ignore
+              "Ds.computed", fun () -> Ds.computed (isOn, Expr.bool true) |> ignore
+              "Ds.indicator", fun () -> Ds.indicator (Signal.rocket<bool> "open") |> ignore ] do
+            let refused = Assert.Throws<ArgumentException>(build)
+            let message = refused.Message
+            if not (message.Contains name) then failwith $"the message does not name the helper: {message}"
+
+    [<Fact>]
+    let ``a Rocket signal still reads as two dollars in an expression, which is how it is used`` () =
+        // The refusal is only about attribute names. Reading it in an expression is the thing Rocket scopes, so it works
+        Expr.toString (Expr.read isOn) |> should equal "$$on"
+        Stmt.toString (Stmt.set isOn (Expr.bool true)) |> should equal "$$on = true"
 
     [<Fact>]
     let ``Ds.signal escapes a text value`` () =

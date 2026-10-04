@@ -111,7 +111,7 @@ let private step = Signal.rocket<int> "step"
 
 let private typedBox (id':string) =
     Elem.create "typed-box" [ Attr.id id' ] [
-        Elem.div [ Ds.signal (isOn, false); Ds.signal (items, [ "a"; "b" ]); Ds.signal (step, 2) ] []
+        Elem.div [ Ds.signal (SignalPath.sp "on", false); Ds.signal (SignalPath.sp "items", [ "a"; "b" ]); Ds.signal (SignalPath.sp "step", 2) ] []
         Elem.button [ Attr.id $"{id'}-toggle"; Ds.onClick (Stmt.toggle isOn) ] [ Text.raw "toggle" ]
         Elem.button [ Attr.id $"{id'}-first"; Ds.onClick (Stmt.set step (Expr.int 1)) ] [ Text.raw "first" ]
         Rocket.templateIf (Expr.equal (Expr.read step) (Expr.int 1), [ Elem.p [ Attr.id $"{id'}-step" ] [ Text.raw "step one" ] ])

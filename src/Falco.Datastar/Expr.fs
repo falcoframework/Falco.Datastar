@@ -139,6 +139,34 @@ module Signal =
         | SignalScope.Browser
         | SignalScope.Server -> "$" + path signal
 
+    /// <summary>
+    /// The name to put in an attribute key, refusing a Rocket signal when there is no component to scope it to.
+    /// </summary>
+    /// <remarks>
+    /// Datastar's Rocket rewrites data-bind, data-computed, data-indicator, data-ref and data-signals to the
+    /// component's own path, but only for signals the component declared with $$('name', value) in its setup, and only
+    /// inside a component. Outside one, or for a name that was never declared, the name is used exactly as written,
+    /// which is the same as a page signal. Accepting it silently is the kind of divergence that is only noticed when
+    /// two components share state, so it is refused here instead: a Rocket signal is written with
+    /// <c>Rocket.local</c> or <c>Rocket.call</c> inside the component, where its meaning is real.
+    /// </remarks>
+    let attributeName (what: string) (signal:Signal<'T>) =
+        match signal.Scope with
+        | SignalScope.RocketComponent ->
+            raise (
+                ArgumentException(
+                    $"{what} was given a Rocket component signal '{signal.Name}', which cannot be written as an attribute name."
+                    + " Rocket rewrites that name to the component's own signal only for a signal the component declared"
+                    + " with $$('name', value), and only inside the component, so anywhere else the name would mean"
+                    + " a page signal and two components would share it."
+                    + " Inside the component use Rocket.local or Rocket.call, or declare the signal with $$('name', value)"
+                    + " and bind to it with Ds.bind.",
+                    what
+                )
+            )
+        | SignalScope.Browser
+        | SignalScope.Server -> path signal
+
 /// An expression that has a value of type 'T. Build it with the functions in the Expr module.
 type Expr<'T> = private Expr of string
 

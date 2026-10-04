@@ -94,7 +94,8 @@ type Ds =
     /// <summary>
     /// Binds a signal to a property of a custom element or web component, instead of its default value or attribute.
     /// Write the property name in kebab-case, because the HTML parser lowercases attribute names and Datastar turns the name back into camelCase.
-    /// A name with a capital letter in it does not work: Datastar only removes the hyphens, so "someProp" would be read as "someprop".
+    /// A name with a capital letter in it does not work. The HTML parser lowercases it, and Datastar's camel case only
+    /// removes hyphens and uppercases what follows, so "someProp" arrives as "someprop" and stays that way.
     /// https://data-star.dev/reference/attributes#data-bind
     /// </summary>
     /// <param name="signalPath">The signal to bind to</param>
@@ -158,7 +159,9 @@ type Ds =
         DsAttr.create ("text", value = expression)
 
     /// <summary>
-    /// Creates a readonly signal that is computed based on an expression.
+    /// Creates a signal that is computed from an expression. Datastar calls it computed because it is meant to be read
+    /// rather than written: assigning to it replaces the value until the expression next re-runs. Datastar does not
+    /// refuse the assignment, so this is a convention rather than something the library can enforce.
     /// The signalPath must not be used as for performing actions; use Ds.effect instead.
     /// https://data-star.dev/reference/attributes#data-computed
     /// </summary>
@@ -585,7 +588,10 @@ type Ds =
     /// <summary>
     /// Creates a signal with a starting value of the signal's type. A text value is escaped.
     /// A browser signal stays in the browser, and a server signal is sent with requests: see <see cref="SignalScope"/>.
-    /// A Rocket component signal is scoped to the component instance by Rocket when this is inside the component.
+    /// A Rocket component signal is refused here. Rocket scopes a signal to one instance of a component only for a
+    /// signal the component declared with $$('name', value) in its setup, and only inside that component, so anywhere
+    /// else the name would mean a page signal that two components share. Inside a component, declare the signal with
+    /// $$('name', value) and bind to it with <see cref="bind"/>, or write the expression with <c>Rocket.local</c>.
     /// https://data-star.dev/reference/attributes#data-signals
     /// </summary>
     /// <param name="signal">The signal to create</param>
@@ -593,7 +599,7 @@ type Ds =
     /// <param name="ifMissing">The signal is only created if it does not exist</param>
     /// <returns>Attribute</returns>
     static member signal (signal:Signal<'T>, signalValue:'T, ?ifMissing) =
-        Ds.signal (SignalPath.create (Signal.path signal), signalValue, ?ifMissing = ifMissing)
+        Ds.signal (SignalPath.create (Signal.attributeName "Ds.signal" signal), signalValue, ?ifMissing = ifMissing)
 
     /// <summary>
     /// Creates a read-only signal that is computed from an expression of the signal's type.
@@ -603,7 +609,7 @@ type Ds =
     /// <param name="expression">The expression that gives its value</param>
     /// <returns>Attribute</returns>
     static member computed (signal:Signal<'T>, expression:Expr<'T>) =
-        Ds.computed (SignalPath.create (Signal.path signal), Expr.toString expression)
+        Ds.computed (SignalPath.create (Signal.attributeName "Ds.computed" signal), Expr.toString expression)
 
     /// <summary>
     /// Binds a signal to an element's value.
@@ -612,7 +618,7 @@ type Ds =
     /// <param name="signal">The signal to bind to. Datastar sends a server signal with requests, which is how a form input reaches the backend</param>
     /// <returns>Attribute</returns>
     static member bind (signal:Signal<'T>) =
-        DsAttr.createSp ("bind", SignalPath.create (Signal.path signal))
+        DsAttr.createSp ("bind", SignalPath.create (Signal.attributeName "Ds.bind" signal))
 
     /// <summary>
     /// Creates a boolean signal that is true while a server request is in flight. Place it in the same element as the action that makes the request.
@@ -621,7 +627,7 @@ type Ds =
     /// <param name="signal">The signal to create. A browser signal is the right choice, because the server does not need it</param>
     /// <returns>Attribute</returns>
     static member indicator (signal:Signal<bool>) =
-        Ds.indicator (SignalPath.create (Signal.path signal))
+        Ds.indicator (SignalPath.create (Signal.attributeName "Ds.indicator" signal))
 
     /// <summary>
     /// Attaches an event listener to an element, and runs the statement when the event happens.
