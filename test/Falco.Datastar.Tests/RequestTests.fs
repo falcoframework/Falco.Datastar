@@ -72,8 +72,8 @@ module RequestTests =
         SignalPath.getSignalFromJson<string> (SignalPath.sp "form.name") document |> should equal (ValueSome "Ada")
 
     [<Fact>]
-    let ``SignalPath.getSignalFromJson raises when the value cannot be read as the type`` () =
-        // Before, this returned nothing, so a caller could not tell a missing signal from one of the wrong type
+    let ``SignalPath.getSignalFromJson gives nothing when the value cannot be read as the type`` () =
+        // This has always returned ValueNone for a value of the wrong type, the same as for a path that is not there.
+        // It is Falco's own behaviour rather than Datastar's, so it is left exactly as it was.
         use document = System.Text.Json.JsonDocument.Parse """{"count":"not a number"}"""
-        // System.Text.Json raises InvalidOperationException for a token of the wrong kind
-        Assert.ThrowsAny<Exception>(fun () -> SignalPath.getSignalFromJson<int> (SignalPath.sp "count") document |> ignore)
+        SignalPath.getSignalFromJson<int> (SignalPath.sp "count") document |> should equal (ValueNone : int voption)

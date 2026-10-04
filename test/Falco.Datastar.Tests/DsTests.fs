@@ -186,6 +186,24 @@ module DsTests =
         renderAttr (Ds.nonce "r4nd0m")
         |> should equal """<div data-nonce="r4nd0m"></div>"""
 
+    // The string overloads of these three are only proved to compile in CompatibilityTests.fs, which asserts nothing at
+    // run time. The mutation run said so, and a helper nothing exercises is exactly the one that breaks quietly.
+    [<Fact>]
+    let ``Ds.text takes an expression as text`` () =
+        renderAttr (Ds.text "$count")
+        |> should equal """<div data-text="$count"></div>"""
+        renderAttr (Ds.text "'literal'")
+        |> should equal """<div data-text="'literal'"></div>"""
+
+    [<Fact>]
+    let ``Ds.show takes an expression as a condition`` () =
+        renderAttr (Ds.show "$flag")
+        |> should equal """<div data-show="$flag"></div>"""
+
+    [<Fact>]
+    let ``Ds.effect takes an expression`` () =
+        renderAttr (Ds.effect "$a = 1") |> should equal """<div data-effect="$a = 1"></div>"""
+
     [<Fact>]
     let ``Ds.nonce escapes the value so it cannot break out of the attribute`` () =
         renderAttr (Ds.nonce "a\"b")

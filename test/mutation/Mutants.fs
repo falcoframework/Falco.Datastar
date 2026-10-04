@@ -581,8 +581,14 @@ module Mutants =
             "        DsAttr.start \"computedx\"\n        |> DsAttr.addSignalPathTarget signalPath"
 
           m "Ds.ref writes the wrong plugin name" "the element reference would never be created" "Ds.fs"
-            "        DsAttr.start \"ref\"\n        |> DsAttr.addValue signalPath"
-            "        DsAttr.start \"refx\"\n        |> DsAttr.addValue signalPath"
+            "        DsAttr.start \"ref\"\n        |> DsAttr.addValue (Js.attrEncode signalPath)"
+            "        DsAttr.start \"refx\"\n        |> DsAttr.addValue (Js.attrEncode signalPath)"
+
+          m "Ds.ref stops escaping the signal name"
+            "a quote in the name would end the attribute and add attributes of its own"
+            "Ds.fs"
+            "        |> DsAttr.addValue (Js.attrEncode signalPath)"
+            "        |> DsAttr.addValue signalPath"
 
           m "Ds.indicator writes the wrong plugin name" "the loading signal would never be created" "Ds.fs"
             "        DsAttr.start \"indicator\"\n        |> DsAttr.addSignalPathTarget signalPath"

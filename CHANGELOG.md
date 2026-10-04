@@ -64,9 +64,9 @@ A module or type of your own called `Rocket` does not clash.
 A URL such as `/items?a=1&b=2` is written with `&amp;`, which the browser reads as `&`. Before, a `'` in a URL or in a text value broke the expression, and text from a user could run code.
 Tests that compare the generated text may need new expected values.
 
-**`Ds.setAll` and `Ds.toggleAll`.** They used to write `@setAll('foo.', true)` and `@toggleAll('foo.')`. The Datastar actions take the value first and a filter second (`@setAll(value, filter)`) and only a filter (`@toggleAll(filter)`), so the old output did not do what it looked like.
-They now write `@setAll(true, { include: /^foo\./ })` and `@toggleAll({ include: /^foo\./ })`. Your code needs no change, but tests that compare the generated text need new expected values.
-Numbers are now written as numbers: `Ds.setAll ("foo.", 5)` used to write `'5'`, which is text, and now writes `5`. If you want text, pass a string.
+**`Ds.setAll` and `Ds.toggleAll`.** They used to write `@setAll('foo.', true)` and `@toggleAll('foo.')`. Datastar reads `@setAll(value, filter)` and `@toggleAll(filter)`, so the prefix was being taken as the value and the value as the filter, and neither call did anything. They now write `@setAll(true, { include: /^foo\./ })` and `@toggleAll({ include: /^foo\./ })`. Your code needs no change.
+
+The prefix is also escaped now, so a prefix that contains a character with a meaning in a regular expression is matched literally. `Ds.setAll("foo.", true)` is unchanged, because a trailing dot matches itself.
 
 **`RequestOptions.Retry`.** It used to be ignored, because the library never wrote it. `Retry = OnError`, `OnAlways` and `OnNever` are now sent, so if your code sets one of them, the retry behaviour of that request changes.
 `OnNever` stops the retries of a response that is not 200. Datastar 1.0.4 still retries after a network error, up to `RetryMaxCount` times.
@@ -80,7 +80,9 @@ It now sends your object as the request body. If your server code expects the si
 
 **`FilterSignals`, `AbortController` and `Headers`.** `FilterSignals` with any pattern used to raise `JsonReaderException`, because the filter text is not JSON. It is now sent as `{"filterSignals":{"include":"^foo"}}`.
 A filter that has an exclude but no include keeps Datastar's rule that signals whose names start with an underscore stay in the browser, which Datastar would otherwise drop when it is given an exclude of its own.
-`AbortController "$controller"` used to be sent as the text `"$controller"`, which Datastar ignores. It is now sent as the signal `$controller`. A header name that is given twice, a `RetryScaler` that is not a number, and an `AbortController` without a name raise an `ArgumentException` that says what to write.
+`AbortController "$controller"` used to be sent as the text `"$controller"`, which Datastar ignores. It is now sent as the signal `$controller`. A `RetryScaler` that is not a number, and an `AbortController` without a name, raise an `ArgumentException` that says what to write.
+
+**A header name that is given twice now raises**, where before it was written out. The check ignores case, so `[ "X-A", "1"; "x-a", "2" ]` used to produce both keys and now raises an `ArgumentException`: a request sends each header name once, and the browser cannot tell you which one won. Put the values in one header, separated by commas.
 
 **`RequestCancellation = AbortController` is checked.** The name goes into the page as code, because Datastar only accepts an `AbortController` object and not the name of one. It is now checked to be the name of a signal, such as `"$controller"`, `"$_controller"` or `"$form.controller"`, and anything else raises an `ArgumentException` that says so.
 Before this, any text could be written as code there. If you wrote the name of a variable that is not a signal, such as `AbortController "$ctl"` where `$ctl` is a local, that code raised an `ArgumentException` from now on. Declare it as a signal with `data-signals:_ctl="new AbortController()"`.
@@ -121,10 +123,7 @@ Inside a component, use `Rocket.local` in an expression, or declare the signal i
 `Signal.tryCreate` returns a `SignalNameError` instead of text. `RocketManifest.parse` and `Request.getRocketManifests` return a `RocketManifestError`. `Request.getRocketManifests` also returns `ConnectionFailed` and `Cancelled` when the connection fails or the request is cancelled, instead of throwing.
 `SignalScope`, `SignalNameError` and `RocketManifestError` are `RequireQualifiedAccess`, so their cases do not clash with your names.
 
-**`Ds.ref` now escapes the signal name.** It wrote the name into the attribute's value with no escaping, and Falco.Markup does not escape attribute values, so a name containing a quote ended the attribute and added attributes of its own. `Ds.ref "a\" onmouseover=\"x"` rendered as `<div data-ref="a" onmouseover="x"></div>`. The name is now escaped, the way `Ds.nonce` already was. Any name with no quote, angle bracket or ampersand in it, which is every name Datastar reads the same either way, is unchanged.
-
-**`SignalPath.getSignalFromJson` raises when a signal is there but cannot be read as `'T`.** It used to catch every exception and return `ValueNone`, which made a signal of the wrong type look like a signal that is not there. It still gives `ValueNone` when the path is not in the document.
-If your code relied on the old behaviour, catch the exception at the call, or read the value as the type it actually has.
+**`Ds.ref` now escapes the signal name.** It wrote the name into the attribute's value with no escaping, and Falco.Markup does not escape attribute values, so a name containing a quote ended the attribute and added attributes of its own. `Ds.ref "a\" onmouseover=\"x"` rendered as `<div data-ref="a" onmouseover="x"></div>`. The name is now escaped, the way `Ds.nonce` already was. A name with no quote, angle bracket or ampersand in it, which is every name that was working before, renders exactly as it did.
 
 #### Changes to your dependencies
 

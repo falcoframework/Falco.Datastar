@@ -59,11 +59,11 @@ module SignalPath =
                     | true, jsonElement -> ValueSome jsonElement
                     )
                 ) (ValueSome jsonElement)
-        // A part of the path that is not there is not an error: the signal simply has no value here.
-        // A value that cannot be read as 'T is a different matter, and is left to the caller to see.
-        match getSignalCore jsonDocument.RootElement signalPath with
-        | ValueNone -> ValueNone
-        | ValueSome element -> ValueSome (element.Deserialize<'T>())
+        // A part of the path that is not there gives ValueNone, and a value that cannot be read as 'T does too.
+        // That is the behaviour this has always had, and it is Falco's own, so it is left as it is.
+        try
+            getSignalCore jsonDocument.RootElement signalPath |> ValueOption.map _.Deserialize<'T>()
+        with | _ -> ValueNone
 
     let createJsonNodeFromPathAndValue<'T> signalPath (signalValue:'T) =
         signalPath
@@ -113,7 +113,7 @@ type Retry =
     /// does not retry a response that is not 200. Datastar 1.0.4 still retries after a network error, up to RetryMaxCount times
     | OnNever
     with
-    static member internal Serialize (retry:Retry) =
+    static member Serialize (retry:Retry) =
         match retry with
         | OnAuto -> "auto"
         | OnError -> "error"
@@ -131,7 +131,7 @@ type RequestCancellation =
     /// https://data-star.dev/reference/actions#request-cancellation
     | AbortController of string
     with
-    static member internal Serialize (requestCancellation:RequestCancellation) =
+    static member Serialize (requestCancellation:RequestCancellation) =
         match requestCancellation with
         | Auto -> "auto"
         | Disabled -> "disabled"
@@ -198,7 +198,7 @@ type RequestOptions = {
 
     /// The options as a JavaScript object, ready to put in an attribute. Only what differs from Datastar's own defaults is written.
     /// Each option is written as a JSON value, except an AbortController, which is the name of a signal that holds one.
-    static member internal Serialize (options:RequestOptions) =
+    static member Serialize (options:RequestOptions) =
         let defaults = RequestOptions.Defaults
         let written = ResizeArray<string>()
         let add (name:string) (javaScript:string) = written.Add $"\"{name}\":{javaScript}"
