@@ -11,7 +11,7 @@
 - Datastar 1.0.4 is the default script, and Rocket has its own script helper, `Ds.rocketCdnScript`.
 - Names are checked. A signal name that Datastar would read differently from an expression, and a name that could end an attribute name early, raise an error that says what to write. See [names that are refused](#names-that-are-refused).
 - Request options that never worked now do: `FilterSignals` and `AbortController`. See the output changes below.
-- The test suite covers every rule in four ways: named tests that pin the output, property tests that hold for any input, deterministic simulation tests seeded so a failure replays, and mutation tests that make a deliberate mistake in the source and require the suite to notice. Nothing in the public API changes because of this.
+- The test suite covers every rule in four ways: named tests that pin the output, property tests that hold for any input, deterministic simulation tests seeded so a failure replays, and mutation tests that make a deliberate mistake in the source and require the suite to notice. Nothing in the public API changes because of this. All 98 mutations are accounted for: 96 are caught by the suite, and the two that cannot be are marked equivalent with the measurement that shows why.
 - Every F# example in this file and in the README is compiled against the built library on every build, so an example that no longer compiles fails CI rather than the next reader.
 
 ### Upgrading

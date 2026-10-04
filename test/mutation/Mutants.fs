@@ -693,9 +693,13 @@ module Mutants =
 
     // Response.fs is what a browser receives, so each of these changes the wire format rather than the library's output.
     let private responses =
-        [ m
+        [ equivalent
               "a response starts the stream twice"
-              "the headers would be written twice, which a browser would reject"
+              "the SDK's StartServerEventStreamAsync is idempotent. Its decompiled state machine assigns the content type \
+               and cache control rather than appending, so a second call leaves the header collection with one value, \
+               writes nothing to the body and throws nothing. Measured against the real SDK: the content type count, the \
+               body length and HasStarted are all identical after one call and after two. No test can tell this from the \
+               original, and a browser would not either."
               "Response.fs"
               "let ofHtmlElements (elements:XmlNode) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        return! sseHtmlElements ctx elements\n    }))"
               "let ofHtmlElements (elements:XmlNode) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        do! sseStartResponse ctx\n        return! sseHtmlElements ctx elements\n    }))"
@@ -714,9 +718,12 @@ module Mutants =
               "    ServerSentEventGenerator.PatchSignalsAsync (ctx.Response, (signals, jsonSerializerOptions) |> JsonSerializer.Serialize, patchSignalsOptions)"
               "    ServerSentEventGenerator.PatchSignalsAsync (ctx.Response, JsonSerializer.Serialize(signals), patchSignalsOptions)"
 
-          m
+          equivalent
               "ofRemoveElementOptions ignores the options the caller passed"
-              "whatever the caller set on the options would be ignored"
+              "RemoveElementOptions has exactly one field, EventId, and a removal event carries no id. Confirmed against \
+               the SDK by compiling a record update naming a field it does not have, which is rejected, and by reading the \
+               bytes the SDK writes. The existing test already asserts the SDK puts no id on a removal, so passing the \
+               options and dropping them produce the same wire format. The overload still passes them, so this is harmless."
               "Response.fs"
               "let ofRemoveElementOptions (options:RemoveElementOptions) (selector:Selector) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        return! sseRemoveElementOptions ctx options selector\n    }))"
               "let ofRemoveElementOptions (options:RemoveElementOptions) (selector:Selector) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        return! sseRemoveElement ctx selector\n    }))" ]
