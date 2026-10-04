@@ -11,6 +11,7 @@
 - Datastar 1.0.4 is the default script, and Rocket has its own script helper, `Ds.rocketCdnScript`.
 - Names are checked. A signal name that Datastar would read differently from an expression, and a name that could end an attribute name early, raise an error that says what to write. See [names that are refused](#names-that-are-refused).
 - Request options that never worked now do: `FilterSignals` and `AbortController`. See the output changes below.
+- The test suite covers every rule in four ways: named tests that pin the output, property tests that hold for any input, deterministic simulation tests seeded so a failure replays, and mutation tests that make a deliberate mistake in the source and require the suite to notice. Nothing in the public API changes because of this.
 
 ### Upgrading
 
@@ -33,8 +34,9 @@ Take care with `OpenWhenHidden = false`. The old code never sent it, so `@post`,
 If you want the old behaviour, delete the line. On a `@get`, `ValueSome false` is the same as leaving it out.
 
 **Overloads.** The typed `Ds.text`, `Ds.show`, `Ds.class'`, `Ds.signal`, `Ds.computed`, `Ds.indicator`, `Ds.onEvent`, `Ds.onClick`, `Ds.onInit`, `Ds.effect`, `Ds.onInterval`, `Ds.onIntersect` and `Ds.onSignalPatch` are overloads of the string versions.
-Code that passes an argument whose type is not yet known, such as `let click handler = Elem.button [ Ds.onClick handler ] []`, or `List.map Ds.show`, now fails with error FS0041, "A unique overload for method could not be determined".
+Code that passes an argument whose type is not yet known, such as `let click handler = Elem.button [ Ds.onClick handler ] []`, or `List.map Ds.show`, now fails with error FS0041, "A unique overload for method could not be determined based on type information prior to this program point".
 Add a type annotation: `let click (handler: string) = ...`. Code that passes a string or a typed value directly needs no change. `Ds.signal` is also no longer `inline`, which changes nothing for callers.
+The examples above are compiled as part of the test suite, so the compiler checks this advice stays true.
 
 #### Changes that produce warnings
 
@@ -80,6 +82,11 @@ It now sends your object as the request body. If your server code expects the si
 A filter that has an exclude but no include keeps Datastar's rule that signals whose names start with an underscore stay in the browser, which Datastar would otherwise drop when it is given an exclude of its own.
 `AbortController "$controller"` used to be sent as the text `"$controller"`, which Datastar ignores. It is now sent as the signal `$controller`. A header name that is given twice, a `RetryScaler` that is not a number, and an `AbortController` without a name raise an `ArgumentException` that says what to write.
 
+**`RequestCancellation = AbortController` is checked.** The name goes into the page as code, because Datastar only accepts an `AbortController` object and not the name of one. It is now checked to be the name of a signal, such as `"$controller"`, `"$_controller"` or `"$form.controller"`, and anything else raises an `ArgumentException` that says so.
+Before this, any text could be written as code there. If you wrote the name of a variable that is not a signal, such as `AbortController "$ctl"` where `$ctl` is a local, that code raised an `ArgumentException` from now on. Declare it as a signal with `data-signals:_ctl="new AbortController()"`.
+
+**`ContentType = CustomJson null`** now sends `"payload": null`. It used to raise a `NullReferenceException` from inside the serializer.
+
 **Signals filters.** `SignalsFilter.Serialize` now returns text that is ready for an attribute, so if you put its result in an attribute yourself, do not encode it again. `SignalsFilter.Include`, `Exclude` and `Prefix` patterns are regular expressions without the slashes around them. The library escapes a slash and a line break inside the pattern, and encodes the pattern for the attribute.
 `Ds.onSignalPatchFilter` and `Ds.jsonSignalsOptions` used to write the pattern as it was, so a quote in it ended the attribute. A pattern that you wrote with slashes around it, such as `"/foo/"`, is now a pattern for the text `/foo/`. Remove the slashes.
 
@@ -103,17 +110,23 @@ Elem.script [ Attr.type' "module"; Attr.src "https://cdn.jsdelivr.net/gh/starfed
 Some names used to be accepted and never worked. They now raise an `ArgumentException` that says what to write.
 
 - A name that goes into an attribute name, such as the class in `Ds.class'`, the event in `Ds.onEvent`, the attribute in `Ds.attr'`, the property in `Ds.style`, a Rocket prop name, and the events of `Ds.bindEvent`: it cannot be empty, contain whitespace, a quote, `=`, `/`, `<` or `>`, or contain a double underscore. Datastar reads `__` as the start of a modifier, so `Ds.class' ("card__title", ...)` toggled a class called `card`.
+  The name of the plugin itself and the name of each modifier are checked the same way, so building a `DsAttr` by hand cannot put a quote into an attribute name.
 - A typed signal name, from `Signal.browser`, `Signal.server`, `Signal.rocket` and `Signal.tryCreate`: a part cannot start with a capital letter, end with an underscore, or have two underscores in a row. HTML makes attribute names lower case, so `Signal.server<int> "Menu"` was declared as `menu` and read as `$Menu`.
 - `Rocket.forEach` needs item and index names that are JavaScript identifiers, and `Stmt.all` needs at least one statement.
 
 `Signal.tryCreate` returns a `SignalNameError` instead of text. `RocketManifest.parse` and `Request.getRocketManifests` return a `RocketManifestError`. `Request.getRocketManifests` also returns `ConnectionFailed` and `Cancelled` when the connection fails or the request is cancelled, instead of throwing.
 `SignalScope`, `SignalNameError` and `RocketManifestError` are `RequireQualifiedAccess`, so their cases do not clash with your names.
 
+**`Ds.ref` now escapes the signal name.** It wrote the name into the attribute's value with no escaping, and Falco.Markup does not escape attribute values, so a name containing a quote ended the attribute and added attributes of its own. `Ds.ref "a\" onmouseover=\"x"` rendered as `<div data-ref="a" onmouseover="x"></div>`. The name is now escaped, the way `Ds.nonce` already was. Any name with no quote, angle bracket or ampersand in it, which is every name Datastar reads the same either way, is unchanged.
+
+**`SignalPath.getSignalFromJson` raises when a signal is there but cannot be read as `'T`.** It used to catch every exception and return `ValueNone`, which made a signal of the wrong type look like a signal that is not there. It still gives `ValueNone` when the path is not in the document.
+If your code relied on the old behaviour, catch the exception at the call, or read the value as the type it actually has.
+
 #### Changes to your dependencies
 
 `Falco.Datastar` now depends on `StarFederation.Datastar.FSharp` 1.4.0. It depended on 1.2.0. Your project picks up the new version by itself, and three things change.
 
-Reading signals for a `@delete` now works. Datastar sends them in the query string, and versions 1.2.0 and 1.2.1 of the SDK only looked in the body, so `Request.getSignals` and `Request.getSignalsJson` came back empty for a `@delete`. If you worked around this by reading the query string yourself, you can remove the workaround.
+Reading signals for a `@delete` now works. Datastar sends them in the `datastar` query parameter, and versions 1.2.0 and 1.2.1 of the SDK only read that parameter for a `GET`, so `Request.getSignals` and `Request.getSignalsJson` came back empty for a `@delete`. Version 1.3.0 added `DELETE` to that check. If you worked around this by reading the query string yourself, you can remove the workaround.
 
 If your own project references `StarFederation.Datastar.FSharp` directly at a version below 1.3.0, NuGet only warns (`NU1605`, "Detected package downgrade") and uses your older version, and the `@delete` problem comes back. Raise that reference to 1.4.0, or remove it.
 

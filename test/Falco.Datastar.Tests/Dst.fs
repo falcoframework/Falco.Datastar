@@ -22,14 +22,20 @@ open System
 /// </remarks>
 module Dst =
 
+    /// The most seeds a run will take. A count above this is a typo, and running it would hang rather than finish.
+    let private maxSeeds = 100_000
+
     let private variable (name: string) =
         match Environment.GetEnvironmentVariable name with
         | null | "" -> None
         | value ->
             match Int32.TryParse value with
-            | true, parsed when parsed > 0 -> Some parsed
-            // A seed count that is not a number is a mistake in the command, and quietly running 25 seeds would hide it
-            | _ -> failwith $"{name} is '{value}', which is not a count of seeds of at least 1"
+            | true, parsed when parsed > 0 && parsed <= maxSeeds -> Some parsed
+            // A seed count that is not a number, or is absurd, is a mistake in the command. Quietly running 25 seeds
+            // instead would look exactly like a pass.
+            | _ ->
+                failwith
+                    $"{name} is '{value}', which is not a count of seeds between 1 and {maxSeeds}"
 
     /// The seeds that a test runs
     let seeds () =

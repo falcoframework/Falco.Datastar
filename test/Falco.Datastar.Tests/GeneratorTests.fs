@@ -82,3 +82,11 @@ module GeneratorTests =
         let generator = Generator.ofSeed 11
         let drawn = [ for _ in 1 .. 1000 -> Generator.pick choices generator ]
         drawn |> List.distinct |> Set.ofList |> should equal (Set.ofList [ "a"; "b"; "c" ])
+
+    [<Fact>]
+    let ``pick says so when there is nothing to choose from, rather than throwing from an index`` () =
+        // An empty array is a mistake in the caller, and it should read as one
+        let error = Assert.Throws<ArgumentException>(fun () -> Generator.pick [||] (Generator.ofSeed 1) |> ignore)
+        if not (error.Message.Contains "nothing to pick from") then
+            failwith $"the message does not say what went wrong: {error.Message}"
+        Assert.Throws<ArgumentException>(fun () -> Generator.pick null (Generator.ofSeed 1) |> ignore) |> ignore

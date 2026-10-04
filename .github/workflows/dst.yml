@@ -54,8 +54,9 @@ jobs:
           DST_SEEDS: ${{ steps.seeds.outputs.count }}
 
       # The same seeds on the oldest target the library supports, because a simulation that passes on one runtime and
-      # fails on another is still a failure, and System.Random is the kind of thing that can differ between them.
+      # fails on another is still a failure. It is built here rather than with --no-build, because the step above only
+      # produced net10.0 and there is nothing to reuse for net8.0.
       - name: Test the same seeds on the oldest target
-        run: dotnet test test/Falco.Datastar.Tests -c Release --framework net8.0 --no-build
+        run: dotnet test test/Falco.Datastar.Tests -c Release --framework net8.0
         env:
           DST_SEEDS: ${{ steps.seeds.outputs.count }}

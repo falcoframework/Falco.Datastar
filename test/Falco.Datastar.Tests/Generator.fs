@@ -50,8 +50,11 @@ module Generator =
         if highExclusive <= lowInclusive then lowInclusive
         else lowInclusive + intBelow (highExclusive - lowInclusive) generator
 
-    /// One of the choices
+    /// One of the choices. An empty array has nothing to choose, so it is a mistake in the caller rather than
+    /// something to draw from, and it says so instead of throwing from an index.
     let pick<'T> (choices: 'T array) (generator: Generator) =
+        if isNull (box choices) || choices.Length = 0 then
+            invalidArg (nameof choices) "there is nothing to pick from"
         choices.[intBelow choices.Length generator]
 
     /// A fraction in [0, 1), so that a test can spread a value over a range

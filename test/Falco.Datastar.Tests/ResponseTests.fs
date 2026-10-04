@@ -280,7 +280,55 @@ module ResponseTests =
         // Asserting that one would be pinning the SDK rather than this library, which is what the other tests avoid.
         hasField "elements" text |> should equal false
 
-    // Running JavaScript. Datastar runs it from an element patch, so the script arrives as elements to add.
+    // Each of these below goes through one of the `of` functions with options that change the wire format, because a
+    // test written against the `sse` version would still pass if the `of` one quietly dropped what it was given.
+
+    [<Fact>]
+    let ``ofHtmlElementsOptions writes the selector and mode the caller passed`` () =
+        let text =
+            (written (fun (ctx: HttpContext) ->
+                Response.ofHtmlElementsOptions
+                    { PatchElementsOptions.Defaults with
+                        Selector = ValueSome "#rows"
+                        PatchMode = ElementPatchMode.Append }
+                    (Elem.tr [ Attr.id "r" ] [ Elem.td [] [ Text.raw "x" ] ])
+                    ctx))
+        fieldIs "selector" "#rows" text
+        fieldIs "mode" "append" text
+
+    [<Fact>]
+    let ``ofHtmlElements does not write the stream header twice`` () =
+        // A browser rejects a second header block, so the event has to appear exactly once
+        let text = written (fun (ctx: HttpContext) -> Response.ofHtmlElements (Elem.h2 [ Attr.id "h" ] []) ctx)
+        let events = text.Split("\n\n", StringSplitOptions.RemoveEmptyEntries) |> Array.filter (fun e -> e.Contains "event:")
+        if events.Length <> 1 then failwith $"expected one event, found {events.Length}:{Environment.NewLine}{text}"
+
+    [<Fact>]
+    let ``ssePatchSignalsOptions uses the serializer options it was given`` () =
+        // The web defaults make the name camelCase, so this only passes if the options really reach the serializer:
+        // with the default options the name would be left as it was written
+        let text =
+            (written (fun (ctx: HttpContext) -> task {
+                do! Response.sseStartResponse ctx
+                return!
+                    Response.ssePatchSignalsOptions
+                        ctx
+                        PatchSignalsOptions.Defaults
+                        (JsonSerializerOptions(JsonSerializerDefaults.Web))
+                        {| UserName = "Ada" |}
+             }))
+        fieldContains "signals" "userName" text
+
+    [<Fact>]
+    let ``ofRemoveElementOptions writes a removal for the selector it was given`` () =
+        let text =
+            (written (fun (ctx: HttpContext) ->
+                Response.ofRemoveElementOptions
+                    { RemoveElementOptions.Defaults with EventId = ValueSome "e7" }
+                    "#target"
+                    ctx))
+        fieldIs "selector" "#target" text
+        fieldIs "mode" "remove" text
 
     [<Fact>]
     let ``ofExecuteScript sends the JavaScript for Datastar to run`` () =

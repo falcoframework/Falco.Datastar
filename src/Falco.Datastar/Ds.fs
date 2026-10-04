@@ -181,7 +181,7 @@ type Ds =
     /// <returns>Attribute</returns>
     static member ref signalPath =
         DsAttr.start "ref"
-        |> DsAttr.addValue signalPath
+        |> DsAttr.addValue (Js.attrEncode signalPath)
         |> DsAttr.create
 
     /// <summary>

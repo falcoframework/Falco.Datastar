@@ -198,6 +198,57 @@ module DsTests =
         renderAttr (Ds.onEvent ("keydown", "$k = evt.key", [ Document ]))
         |> should equal """<div data-on:keydown__document="$k = evt.key"></div>"""
 
+    // The three ignore attributes and the two signal-patch attributes, which the mutation run showed had no test at all.
+    // A plugin name written wrong is an attribute Datastar quietly does not run, so each one is pinned.
+
+    [<Fact>]
+    let ``Ds.ignore writes the ignore attribute`` () =
+        renderAttr Ds.ignore |> should equal """<div data-ignore></div>"""
+
+    [<Fact>]
+    let ``Ds.ignoreSelf adds the self modifier`` () =
+        renderAttr Ds.ignoreSelf |> should equal """<div data-ignore__self></div>"""
+
+    [<Fact>]
+    let ``Ds.ignoreMorph writes its own attribute, which is not the one Datastar ignores elements with`` () =
+        // data-ignore-morph tells the patcher to skip the element; data-ignore__morph would be a modifier of data-ignore
+        renderAttr Ds.ignoreMorph |> should equal """<div data-ignore-morph></div>"""
+
+    [<Fact>]
+    let ``Ds.preserveAttr writes the attribute and its list of names`` () =
+        renderAttr (Ds.preserveAttr "open") |> should equal """<div data-preserve-attr="open"></div>"""
+        renderAttr (Ds.preserveAttr "open class")
+        |> should equal """<div data-preserve-attr="open class"></div>"""
+
+    [<Fact>]
+    let ``Ds.onSignalPatch writes the expression it is given`` () =
+        renderAttr (Ds.onSignalPatch "$last = $value")
+        |> should equal """<div data-on-signal-patch="$last = $value"></div>"""
+
+    [<Fact>]
+    let ``Ds.onSignalPatch takes a delay, a debounce and a throttle`` () =
+        renderAttr (Ds.onSignalPatch ("$a = 1", delayMs = 250))
+        |> should equal """<div data-on-signal-patch__delay.250ms="$a = 1"></div>"""
+        renderAttr (Ds.onSignalPatch ("$a = 1", debounce = Debounce.With(TimeSpan.FromMilliseconds 100.0)))
+        |> should equal """<div data-on-signal-patch__debounce.100ms="$a = 1"></div>"""
+        renderAttr (Ds.onSignalPatch ("$a = 1", throttle = Throttle.With(100.0)))
+        |> should equal """<div data-on-signal-patch__throttle.100ms="$a = 1"></div>"""
+
+    // data-ref puts the signal name in the attribute's VALUE, not in its key, so a wrong plugin name is the only way
+    // for it to go wrong and there is no test for it at all until the mutation run said so.
+    [<Fact>]
+    let ``Ds.ref puts the signal name in the value, so the element can be read as a signal`` () =
+        renderAttr (Ds.ref "card")
+        |> should equal """<div data-ref="card"></div>"""
+        // It is deliberately not data-ref:card, which would name the signal from the attribute key instead
+        if (renderAttr (Ds.ref "card")).Contains ":card" then
+            failwith "data-ref must put the name in the value, not the key"
+
+    [<Fact>]
+    let ``Ds.ref escapes the name, so it cannot break out of the attribute`` () =
+        renderAttr (Ds.ref "a\" onmouseover=\"x")
+        |> should equal """<div data-ref="a&quot; onmouseover=&quot;x"></div>"""
+
     // Every part of a key goes into the name of an attribute, and Falco.Markup does not escape an attribute name.
     // A quote in the attribute name, in the plugin name or in the name of a modifier would end the name early and could add attributes of its own.
 

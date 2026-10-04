@@ -5,6 +5,7 @@ open System.Collections.Generic
 open System.Diagnostics
 open System.IO
 open System.Text.RegularExpressions
+open System.Threading.Tasks
 
 /// Runs the mutants against the unit tests, and reports what the suite catches and what it does not.
 module Runner =
@@ -14,7 +15,9 @@ module Runner =
     let private testProject = "test/Falco.Datastar.Tests"
     let private backupSuffix = ".mutation-backup"
 
-    /// Runs a command from the repository root and gives back its exit code
+    /// Runs a command from the repository root and gives back its exit code.
+    /// Both streams are drained at the same time on purpose. Reading one to the end and then the other deadlocks as
+    /// soon as the second one's pipe buffer fills while nothing is reading it, which a chatty `dotnet test` will do.
     let private run (executable: string) (arguments: string) =
         let info =
             ProcessStartInfo(executable, arguments)
@@ -25,8 +28,10 @@ module Runner =
                 i
 
         use started = Process.Start info
-        // Both streams have to be drained before waiting, or a full pipe deadlocks the child
-        let output = started.StandardOutput.ReadToEnd() + started.StandardError.ReadToEnd()
+        let standardOutput = started.StandardOutput.ReadToEndAsync() :> Task
+        let standardError = started.StandardError.ReadToEndAsync() :> Task
+        // Both reads are already running, so neither pipe can fill and block the child
+        Task.WaitAll([| standardOutput; standardError |])
         started.WaitForExit()
         started.ExitCode
 
@@ -93,13 +98,11 @@ module Runner =
 
         // A file with no mutant at all is not a problem with this list, but saying so stops anybody reading
         // "all killed" as meaning the whole library is covered.
-        let untouched =
-            Directory.GetFiles(sourceDirectory, "*.fs")
-            |> Array.map Path.GetFileName
-            |> Set.ofArray
-            |> Set.difference (Mutants.filesTouched |> Set.ofList)
-            |> Set.toArray
-            |> Array.sort
+        // The sets are bound to names first on purpose: `|>` supplies its value as the LAST argument, so
+        // `a |> Set.difference b` computes b minus a, which is the opposite of what it reads like.
+        let everyFile = Directory.GetFiles(sourceDirectory, "*.fs") |> Array.map Path.GetFileName |> Set.ofArray
+        let touchedFile = Mutants.filesTouched |> Set.ofList
+        let untouched = Set.difference everyFile touchedFile |> Set.toArray |> Array.sort
 
         printfn "checked %d mutants, %d problem(s)" Mutants.all.Length problems.Count
         for problem in problems do

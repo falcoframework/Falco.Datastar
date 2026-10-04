@@ -55,9 +55,15 @@ jobs:
           fi
           echo "no warnings other than the advisories the project allows"
 
-      # Packing proves the package can be built and is well formed, which is checked here on every change so a release
-      # is never the thing that finds out. It publishes nothing: the package lands in packages/ and is thrown away with
-      # the runner. How this library reaches NuGet is the maintainer's business, not this workflow's.
+      # The mutation program is deliberately not in the solution, so nothing above builds it. That is what keeps it
+      # from being a dependency of the library, and it is also why it is built here: a syntax error in it would
+      # otherwise land green on every push and only surface in the weekly mutation run.
+      - name: Check the mutation program compiles
+        run: dotnet build test/mutation -c Release
+
+      # A package that cannot be packed cannot be published, and a missing README or icon only shows up when someone
+      # tries. Packing is the check that runs on every change, so a release is never the thing that finds out.
+      # It publishes nothing: how this library reaches NuGet is the maintainer's business, not this workflow's.
       - name: Pack
         run: dotnet pack src/Falco.Datastar -c Release --no-build -o packages
 

@@ -90,3 +90,25 @@ module DistributionTests =
                 | Error _ -> refused <- refused + 1
             accepted |> should be (greaterThan 20)
             refused |> should be (greaterThan 20))
+
+    [<Fact>]
+    let ``every fragment group is drawn in about the proportion it is weighted`` () =
+        // The weights are what stop the dangerous groups being drawn almost never, so they have to actually be
+        // what the generator does and not only what a comment says.
+        //
+        // The tolerance has to allow for sampling noise, which on a group weighted at a few percent is a couple of
+        // points either way on twenty thousand draws. It is narrow enough that a weighting which is simply not applied
+        // would still fail: without the weights every group would be drawn about an eighth of the time, which is far
+        // outside this band for the ordinary group and for the small ones alike.
+        let counts = Fragments.fragmentCounts 20000 |> Map.ofList
+        let total = counts |> Map.toList |> List.sumBy snd
+        let weightSum = Fragments.weights |> List.sumBy snd
+        for index in 0 .. Fragments.weights.Length - 1 do
+            let fragments, weight = Fragments.weights.[index]
+            let drawn = counts |> Map.tryFind index |> Option.defaultValue 0
+            let share = 100.0 * float drawn / float total
+            let expected = 100.0 * float weight / float weightSum
+            if abs (share - expected) > 1.5 + expected / 5.0 then
+                let drawnShare = sprintf "%.1f" share
+                let wantedShare = sprintf "%.1f" expected
+                failwith $"the group starting '{fragments.[0]}' was drawn {drawnShare} percent of the time, but it is weighted {wantedShare}"

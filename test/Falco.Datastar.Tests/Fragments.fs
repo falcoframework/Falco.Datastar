@@ -1,6 +1,7 @@
 namespace Falco.Datastar.Tests
 
 open System
+open System.Collections.Generic
 
 /// The pieces the simulation tests build their inputs from.
 ///
@@ -81,15 +82,16 @@ module Fragments =
     let fragment (generator: Generator) =
         let total = groups |> List.sumBy snd
         let mutable roll = Generator.intBelow total generator
-        let mutable chosen = ""
-        // The groups are walked in order, spending the roll as it goes, so a group's share of the range is its weight
-        for (fragments, weight) in groups do
-            if chosen = "" then
-                if roll < weight then
-                    chosen <- fragments.[Generator.intBelow fragments.Length generator]
-                else
-                    roll <- roll - weight
-        chosen
+        // The group is found by index rather than by remembering its text, because a fragment could legitimately be
+        // the empty string and "" is then indistinguishable from "nothing chosen yet".
+        let mutable chosenGroup = -1
+        for index in 0 .. groups.Length - 1 do
+            if chosenGroup < 0 then
+                let _, weight = groups.[index]
+                if roll < weight then chosenGroup <- index
+                else roll <- roll - weight
+        let fragments, _ = groups.[max 0 chosenGroup]
+        fragments.[Generator.intBelow fragments.Length generator]
 
     /// Text of zero to a few fragments. Length is weighted short, because the interesting cases are usually short
     /// and a long run of them rarely finds anything new.
@@ -107,6 +109,24 @@ module Fragments =
         let pieces = [| "a"; "x"; "count"; "menuOpen"; "form"; "firstName"; "1"; "0"; "_"; "-"; "."; "$"; " "; "A" |]
         let howMany = Generator.intBetween 1 5 generator
         String.Join("", [ for _ in 1 .. howMany -> pieces.[Generator.intBelow pieces.Length generator] ])
+
+    /// Which group each draw came from, so a test can check that the weighting is what the generator does.
+    /// One generator for the whole run, or each group would be measured against a different sequence of rolls.
+    /// The group is identified by its own fragments, because a drawn fragment is only known to belong to one group
+    /// by looking it up: some groups hold text that is also the whole result.
+    let fragmentCounts (draws: int) =
+        let generator = Generator.ofSeed 24680
+        let totals = Dictionary<int, int>()
+        for index in 0 .. groups.Length - 1 do
+            totals[index] <- 0
+        for _ in 1 .. draws do
+            let drawn = fragment generator
+            // A drawn fragment belongs to whichever group holds it; a fragment in two groups counts for the first,
+            // which only happens if a group overlaps another and is worth knowing about rather than hiding.
+            match groups |> List.tryFindIndex (fun (fragments, _) -> fragments |> Array.contains drawn) with
+            | Some index -> totals[index] <- totals[index] + 1
+            | None -> ()
+        totals |> Seq.map (fun entry -> entry.Key, entry.Value) |> Seq.toList
 
     /// Every fragment in every group, so a test can assert each one is reachable rather than only that some are
     let everyFragment: string array =

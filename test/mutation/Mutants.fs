@@ -534,6 +534,10 @@ module Mutants =
     // Ds.fs is the public surface: the functions a page is built from. A plugin name written even slightly wrong is an
     // attribute Datastar simply does not run, and nothing else would notice. Each entry anchors on the line the name is
     // on together with the line after it, so it names one helper rather than a shape several of them share.
+    //
+    // A helper with a typed overload and a string overload appears twice in this file, so mutating one of them still
+    // leaves the other correct and the mutant survives. Those are listed twice, once per overload, so that each of them
+    // has to be killed on its own.
     let private dsPluginNames =
         [ m "Ds.attr writes the wrong plugin name" "a page would carry data-attrx, so no attribute would be bound" "Ds.fs"
             "        DsAttr.create (\"attr\", targetName = attributeName, value = expression)"
@@ -550,6 +554,15 @@ module Mutants =
           m "Ds.show writes the wrong plugin name" "a page would carry data-showx, so the element would never hide" "Ds.fs"
             "        DsAttr.create (\"show\", value = boolExpression)"
             "        DsAttr.create (\"showx\", value = boolExpression)"
+
+          // The typed overloads of the two above, which carry the same plugin name on a different line
+          m "the typed Ds.text writes the wrong plugin name" "a page would carry data-textx, so no text would be bound" "Ds.fs"
+            "        DsAttr.create (\"text\", value = Expr.toString expression)"
+            "        DsAttr.create (\"textx\", value = Expr.toString expression)"
+
+          m "the typed Ds.show writes the wrong plugin name" "a page would carry data-showx, so the element would never hide" "Ds.fs"
+            "        DsAttr.create (\"show\", value = Expr.toString condition)"
+            "        DsAttr.create (\"showx\", value = Expr.toString condition)"
 
           m "Ds.effect writes the wrong plugin name" "a page would carry data-effectx, so the effect would never run" "Ds.fs"
             "        DsAttr.create (\"effect\", value = expression)"
@@ -682,32 +695,64 @@ module Mutants =
               "let ofHtmlElements (elements:XmlNode) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        do! sseStartResponse ctx\n        return! sseHtmlElements ctx elements\n    }))"
 
           m
-              "the element options are dropped and the defaults used"
-              "a selector or a patch mode the caller asked for would be ignored"
+              "ofHtmlElementsOptions ignores the options the caller passed"
+              "a selector or a patch mode the caller asked for would be ignored, and the defaults used"
               "Response.fs"
               "let ofHtmlElementsOptions (options:PatchElementsOptions) (elements:XmlNode) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        return! sseHtmlElementsOptions ctx options elements\n    }))"
               "let ofHtmlElementsOptions (options:PatchElementsOptions) (elements:XmlNode) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        return! sseHtmlElements ctx elements\n    }))"
 
           m
-              "the serializer options for patched signals are dropped"
+              "ssePatchSignalsOptions ignores the serializer options the caller passed"
               "property names would keep their F# casing instead of the casing the caller asked for"
               "Response.fs"
               "    ServerSentEventGenerator.PatchSignalsAsync (ctx.Response, (signals, jsonSerializerOptions) |> JsonSerializer.Serialize, patchSignalsOptions)"
               "    ServerSentEventGenerator.PatchSignalsAsync (ctx.Response, JsonSerializer.Serialize(signals), patchSignalsOptions)"
 
           m
-              "a single signal is sent at the top level instead of under its path"
-              "patching form.name would set a signal called form holding an object, not form.name"
-              "Response.fs"
-              "    let signalPatch = (signalPath, signalValue) ||> SignalPath.createJsonNodeFromPathAndValue |> _.ToJsonString()"
-              "    let signalPatch = JsonSerializer.Serialize(signalValue)"
-
-          m
-              "the options for a removed element are dropped"
-              "the event id the caller set would be ignored"
+              "ofRemoveElementOptions ignores the options the caller passed"
+              "whatever the caller set on the options would be ignored"
               "Response.fs"
               "let ofRemoveElementOptions (options:RemoveElementOptions) (selector:Selector) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        return! sseRemoveElementOptions ctx options selector\n    }))"
               "let ofRemoveElementOptions (options:RemoveElementOptions) (selector:Selector) =\n    (fun ctx -> nu (task {\n        do! sseStartResponse ctx\n        return! sseRemoveElement ctx selector\n    }))" ]
+
+    // RocketManifest.fs reads a document that a page posted, so a version or a default that is off means a document
+    // the library does not understand. This file had no mutants at all until the run reported it, which is the whole
+    // reason the report exists: a safety net that cannot fire is the same as no safety net.
+    let private manifest =
+        [ m
+              "the manifest reader accepts any version"
+              "a manifest this library cannot read would be parsed as if it could"
+              "RocketManifest.fs"
+              "                | true, number when number = supportedVersion -> Ok number"
+              "                | true, number when number >= 0 -> Ok number"
+
+          m
+              "a missing property in the manifest is not an error"
+              "a manifest with no tag or no name would be read as an empty component"
+              "RocketManifest.fs"
+              "            | true, value -> ValueSome value\n            | false, _ -> ValueNone\n        | _ -> ValueNone"
+              "            | true, value -> ValueSome value\n            | false, _ -> ValueSome (JsonDocument.Parse(\"null\").RootElement)\n        | _ -> ValueNone"
+
+          m
+              "the manifest reader stops checking the generatedAt date"
+              "a manifest with no date would be read as if it had one"
+              "RocketManifest.fs"
+              "            | true, moment -> Ok moment"
+              "            | true, moment -> Ok (DateTimeOffset.MinValue)"
+
+          m
+              "a codec name this library does not know is refused"
+              "a newer Rocket that adds a codec would break the manifest reader instead of keeping the name"
+              "RocketManifest.fs"
+              "        | other -> RocketPropType.Other other"
+              "        | other -> raise (ArgumentException(other))"
+
+          m
+              "an unknown event kind is refused"
+              "a newer Rocket that adds a kind of event would break the manifest reader instead of keeping the name"
+              "RocketManifest.fs"
+              "        | other -> RocketEventKind.Other other"
+              "        | other -> raise (ArgumentException(other))" ]
 
     /// Every mutant, in the order they are run
     let all: Mutant list =
@@ -721,6 +766,7 @@ module Mutants =
         @ rocket
         @ requestBody
         @ responses
+        @ manifest
 
     /// The files the list touches, so a run can say which ones it says nothing about
     let filesTouched =
