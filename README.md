@@ -97,6 +97,7 @@ let handleClick : HttpHandler =
 And lastly, we'll make Falco aware of these routes by adding them to the `endpoints` list.
 
 ```fsharp
+// README-EXCERPT a fragment: handleIndex and handleClick are the handlers defined above
 let endpoints =
     [ get "/" handleIndex
       get "/click" handleClick ]
@@ -150,6 +151,7 @@ Also, `@get` stops its request when the page is hidden and opens it again when t
 Both of those mean the read handler sends the state before it waits for changes, rather than waiting first:
 
 ```fsharp
+// README-EXCERPT a fragment: counter is the signal defined above, and this continues the stream handler
 let handleUpdates : HttpHandler = fun ctx -> task {
     do! Response.sseStartResponse ctx
     // The current state first. A new visitor needs it, and so does one whose stream was reopened after the page was hidden.
@@ -268,6 +270,7 @@ An `Expr<'T>` is an expression with a value, and a `Stmt` is something that is d
 `Ds.onIntersect` and `Ds.onSignalPatch` all have overloads that take them. The typed `Ds.show` takes a boolean expression, and the typed `Ds.onClick` takes a statement.
 
 ```fsharp
+// README-EXCERPT fragments: count and menuOpen are the signals declared above
 Expr.toString (Expr.divide (Expr.read count) (Expr.int 5))       // Math.trunc($_count / 5), because count is an int
 Expr.toString (Expr.unsafeRaw<bool> "$a || $b")                  // ($a || $b), so Expr.negate gives (!($a || $b))
 Expr.toString (Expr.string "it's")                               // 'it\'s'
@@ -537,7 +540,7 @@ Elem.div [ Ds.onInit (Ds.get "/edit") ] []
 Modifiers allow you to alter the behavior when events are triggered. (Modifiers with a '*' can only be used with the [built-in events](https://developer.mozilla.org/en-US/docs/Web/Events)).
 
 ```fsharp
- type OnEventModifier =
+type OnEventModifier =
     | Once     // * - can only be used with built-in events
     | Passive  // * - can only be used with built-in events
     | Capture  // * - can only be used with built-in events
@@ -787,6 +790,7 @@ The script tag that loads Datastar needs the nonce too, unless your policy alrea
 Datastar also applies the nonce to scripts that arrive in element patches and JavaScript responses, so those responses do not need to carry it.
 
 ```fsharp
+// README-EXCERPT a fragment: it belongs inside a handler, and ctx is that handler's context argument
 let nonce = "..." // a new random value for each response
 ctx.Response.Headers["Content-Security-Policy"] <- $"script-src 'nonce-{nonce}'"
 
@@ -1001,6 +1005,7 @@ let handleManifests : HttpHandler = fun ctx -> task {
 The error is a `RocketManifestError`: `NotJson`, `TooLarge`, `Missing`, `WrongKind`, `UnsupportedVersion`, `NotAnObject`, `ConnectionFailed` or `Cancelled`. Match on it, or use its `Message`, which says what is wrong and what to do about it.
 `Missing` and `WrongKind` say where the problem is, for example the prop "count" of my-card. `Request.getRocketManifests` refuses a body larger than 1 MiB without reading the rest of it.
 ```fsharp
+// README-EXCERPT a fragment: ctx is the handler's context argument, and counter is from the handler above
 match! Request.getRocketManifests ctx with
 | Ok manifest -> store manifest
 | Error RocketManifestError.Cancelled
@@ -1062,7 +1067,7 @@ that will throw an exception at startup, if a signal path contains any invalid s
 
 ```fsharp
 open Falco.Datastar.SignalPath
-...
+
 Elem.input [ Attr.typeCheckbox; Ds.bind (sp"checkBoxSignal") ]
 ```
 
@@ -1090,6 +1095,7 @@ Will use [`System.Text.Json.JsonSerializer`](https://learn.microsoft.com/en-us/d
 If the request has no signals, it returns `ValueNone`.
 
 ```fsharp
+// README-EXCERPT a fragment: the type and the handler below it are one example split by the prose
 [<CLIMutable>]
 type MySignals =
     { firstName : string
@@ -1107,6 +1113,7 @@ let httpHandler : HttpHandler = (fun ctx -> task {
 Will return a `System.Text.Json.JsonDocument` of the signals.
 
 ```fsharp
+// README-EXCERPT a fragment: it continues the handler in the example above
 let httpHandler : HttpHandler = (fun ctx -> task {
     let! jsonDocument = Request.getSignalsJson ctx
     ...
@@ -1120,6 +1127,7 @@ let httpHandler : HttpHandler = (fun ctx -> task {
 Serializes signals with [`System.Text.Json.JsonSerializer`](https://learn.microsoft.com/en-us/dotnet/api/system.text.json.jsonserializer) and sends to client where Datastar will merge them.
 
 ```fsharp
+// README-EXCERPT a fragment: MySignals is the type declared above
 Response.ofPatchSignals (MySignals())
 ```
 
@@ -1229,6 +1237,7 @@ All the functions in [Responding with Signals](#responding-with-signals) and [Re
 are mirrored with a function with `sse` as their prefix instead of `of`.
 
 ```fsharp
+// README-EXCERPT a fragment: it is the streaming handler from the section above, shown again for the options
 let handleStream = (fun ctx -> task {
     do! Response.sseStartResponse ctx  // make sure this is called first; sends the appropriate headers
 

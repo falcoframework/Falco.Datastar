@@ -61,9 +61,10 @@ jobs:
       - name: Check the mutation program compiles
         run: dotnet build test/mutation -c Release
 
-      # Every F# example in the README and the changelog is type-checked against the built library. A maintainer reads
+      # Every F# example in the README and the changelog is compiled against the built library. A maintainer reads
       # the README to decide whether this binding can be trusted, and an example that no longer compiles is the fastest
-      # way to lose them. It is a script rather than a test because it drives the compiler as a child process.
+      # way to lose them. It is a script rather than a test because it runs the F# compiler once per block, as a child
+      # process, so that each block is compiled on its own rather than seeing the blocks above it.
       - name: Check the documented examples
         run: dotnet fsi test/readme-examples.fsx
 

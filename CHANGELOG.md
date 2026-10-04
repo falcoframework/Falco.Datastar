@@ -12,6 +12,7 @@
 - Names are checked. A signal name that Datastar would read differently from an expression, and a name that could end an attribute name early, raise an error that says what to write. See [names that are refused](#names-that-are-refused).
 - Request options that never worked now do: `FilterSignals` and `AbortController`. See the output changes below.
 - The test suite covers every rule in four ways: named tests that pin the output, property tests that hold for any input, deterministic simulation tests seeded so a failure replays, and mutation tests that make a deliberate mistake in the source and require the suite to notice. Nothing in the public API changes because of this.
+- Every F# example in this file and in the README is compiled against the built library on every build, so an example that no longer compiles fails CI rather than the next reader.
 
 ### Upgrading
 
@@ -22,11 +23,14 @@ This section covers upgrading from version 1.3.0 or earlier. It lists what can s
 **`OpenWhenHidden` is now `bool voption`.** The compiler reports error FS0001. Wrap the value in `ValueSome`:
 
 ```fsharp
-// before
-{ RequestOptions.Defaults with OpenWhenHidden = true }
+// README-EXCERPT fragments, not a whole program: each line is the body of a binding in your code.
+// The first one no longer compiles, which is what the section above is about.
+let options =
+    // before
+    { RequestOptions.Defaults with OpenWhenHidden = true }
 
-// after
-{ RequestOptions.Defaults with OpenWhenHidden = ValueSome true }
+    // after
+    { RequestOptions.Defaults with OpenWhenHidden = ValueSome true }
 ```
 
 Take care with `OpenWhenHidden = false`. The old code never sent it, so `@post`, `@put`, `@patch` and `@delete` ignored it and kept running while the page was hidden, because that is Datastar's default for them.
@@ -54,6 +58,7 @@ If your own code declares a union case with one of these names, and you open `Fa
 Either move `open Falco.Datastar` above your type, or put the type name in front of the case:
 
 ```fsharp
+// README-EXCERPT a fragment: msg and Msg are from the surrounding example, not defined here
 match msg with
 | Msg.Query text -> text
 | Msg.Cleanup -> "cleaned up"

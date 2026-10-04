@@ -53,11 +53,11 @@ let private sharedFrameworkDirectory (name: string) =
     |> Array.truncate 1
     |> Array.tryHead
 
-/// The references each checked block is compiled against, as the `#r` lines that go in front of it.
+/// The references each checked block is compiled against, as the `--reference` paths fsc takes.
 ///
 /// The ASP.NET Core assemblies are not in the test project's output, because it is a library rather than a web app, and
-/// `dotnet fsi` cannot be given a framework reference. They are taken from the shared framework instead, which is the
-/// same set of assemblies a Falco web app compiles against.
+/// a bare fsc cannot be given a framework reference. They are taken from the shared framework instead, which is the same
+/// set of assemblies a Falco web app compiles against.
 let private referenceLines () =
     if not (Directory.Exists libraryBin) then
         failwithf "build the test project first, there is no %s" libraryBin
@@ -75,7 +75,7 @@ let private referenceLines () =
     Array.append packageAssemblies frameworkAssemblies
     |> Array.distinct
     |> Array.sort
-    |> Array.map (fun path -> sprintf "#r @\"%s\"" path)
+    |> Array.map (fun path -> sprintf "--reference:%s" path)
 
 /// The `fsharp` blocks of each document, with the file, the line each one starts on, and whether the block asked to be
 /// left alone with a README-EXCERPT comment.
@@ -122,49 +122,105 @@ let private excerpts =
 
 printfn "checking %d example blocks from %s" toCheck.Length (String.concat ", " documents)
 
+/// A guard against the checker quietly becoming a checker of nothing.
+///
+/// The first version of this skipped every block that did not begin with `let`, which was 58 of the 71 blocks in the
+/// README, and still printed a line saying how many it had checked. So the counts are asserted rather than printed: a
+/// change to the Markdown that stops this from finding blocks is a failure here, not a green run that proves less.
+///
+/// The floor is not a guess about how many blocks there should be. It is well under the current count, so adding
+/// examples is fine; what fails is a drop large enough to suggest the extraction or the marker logic changed.
+let private minimumBlocksExpected = 40
+
+if toCheck.Length < minimumBlocksExpected then
+    failwithf
+        "only %d example blocks would be checked, which is far fewer than the %d expected; either the fence pattern no \
+         longer matches the Markdown or blocks are being skipped without saying so"
+        toCheck.Length
+        minimumBlocksExpected
+
 if toCheck.IsEmpty then
     failwith "no example blocks were found, so nothing was checked; is the path to the documents wrong?"
 
-/// Type-checks one block by running it through the F# compiler, and returns the errors it gave.
+/// The opening lines every block is given. A reader copies one block on its own, so each has to name the modules it uses.
+///
+/// `System` and `FSharp.Core` are here because an example that writes a time span or a list expects them to be there, the
+/// way they are in every F# script and in a file's auto-opens. They are deliberately generous: a block that fails should
+/// fail because the example is wrong, not because the checker forgot an open. A block that needs an open beyond these
+/// names it, which is the point of the check.
+let private openingLines =
+    [ "open System"
+      "open Falco"
+      "open Falco.Markup"
+      "open Falco.Routing"
+      "open Falco.Datastar"
+      "open Falco.Datastar.SignalPath"
+      "open Falco.Datastar.Selector"
+      "open Microsoft.AspNetCore.Builder"
+      "open Microsoft.AspNetCore.ResponseCompression"
+      "open Microsoft.Extensions.DependencyInjection"
+      "open StarFederation.Datastar.FSharp" ]
+
+/// The F# compiler that ships with the SDK, which compiles and never evaluates, unlike fsi.
+///
+/// The newest SDK is used, so the compiler that reads the README is the one the library itself is built with. A block that
+/// needs a newer language feature than an older compiler has is a documentation problem worth seeing.
+let private fscPath =
+    let sdk = Path.Combine(dotnetRoot, "sdk")
+    if not (Directory.Exists sdk) then
+        failwithf "no SDK at %s, so there is no F# compiler to check the examples with" sdk
+    Directory.GetDirectories(sdk)
+    |> Array.filter (fun path ->
+        let name = Path.GetFileName path
+        // A release version, not a preview or a release candidate, which may not accept what the project uses.
+        name.Split('.') |> Array.forall (fun part -> not (part.Contains "-")) && name.Contains ".")
+    |> Array.sortDescending
+    |> Array.tryFind (fun path -> File.Exists(Path.Combine(path, "FSharp", "fsc.dll")))
+    |> Option.map (fun path -> Path.Combine(path, "FSharp", "fsc.dll"))
+    |> Option.defaultWith (fun () -> failwithf "no F# compiler found under %s" sdk)
+
+/// Type-checks one block with the F# compiler, and returns the errors it gave.
 ///
 /// Each README example opens the modules it needs, because a reader copies one block on its own and it has to work. So the
 /// check gives a block the same opening lines a getting-started page gives, and reports which ones were missing when it
 /// fails, rather than a wall of "the value is not defined" for every name.
+///
+/// The block is compiled, not run. `dotnet fsi` was used first and does not do that: --use loads the file and evaluates
+/// it, so the getting-started example called .Run(), bound port 5000, and the checker hung there until it was killed,
+/// which is what made an earlier version of this take half an hour. fsc compiles and never evaluates, so an example that
+/// starts a web server, listens on a port, or writes a file costs nothing here. It matters that the script is named .fs
+/// and wrapped in a module: fsc takes a program, not a script.
+///
+/// One compiler process per block. fsc takes several inputs at once, but every input shares one program, so two blocks
+/// could see each other's definitions; a block that compiles only because an earlier one defined a name is a block that
+/// does not work for a reader. Each block on its own is the property worth having.
+///
+/// stderr is read as it arrives, because a pipe nothing drains fills up and stops the child answering.
 let private check (code: string) =
-    let opening =
-        [ "open Falco"
-          "open Falco.Markup"
-          "open Falco.Routing"
-          "open Falco.Datastar"
-          "open Falco.Datastar.SignalPath"
-          "open Microsoft.AspNetCore.Builder"
-          "open Microsoft.AspNetCore.ResponseCompression"
-          "open Microsoft.Extensions.DependencyInjection"
-          "open StarFederation.Datastar.FSharp" ]
+    let source = Path.Combine(Path.GetTempPath(), sprintf "readme-example-%d.fs" (abs (hash code)))
+    File.WriteAllText(source, String.concat "\n" ([ "module ReadmeExample" ] @ openingLines @ [ code ]))
 
-    let attempt (before: string list) =
-        let scratch = Path.Combine(Path.GetTempPath(), "readme-example.fsx")
-        let contents = String.concat "\n" ((referenceLines () |> List.ofArray) @ before @ [ code ])
-        File.WriteAllText(scratch, contents)
-        // `dotnet fsi --use:file.fsx` loads the file into a session. Loading type-checks it, which is what this is for,
-        // and the script is then never evaluated, so a block that calls .Run() does not start a web server. Running the
-        // file instead, as this did, bound port 5000 and every block after it failed with AddressInUseException.
-        let start = Diagnostics.ProcessStartInfo("dotnet", sprintf "fsi --nologo --quiet --use:%s" scratch)
-        start.RedirectStandardOutput <- true
-        start.RedirectStandardError <- true
-        use started = Diagnostics.Process.Start start
-        // Both reads start before either is awaited. Reading stdout to the end first deadlocks as soon as stderr
-        // fills its pipe while nothing is draining it, which a block with many errors does. The child deadlocks
-        // instead of this one, and CI hangs rather than reporting.
-        let output = started.StandardOutput.ReadToEndAsync()
-        let errors = started.StandardError.ReadToEndAsync()
-        started.WaitForExit()
-        let succeeded = started.ExitCode = 0
-        let text = (output.Result + errors.Result).Trim()
-        File.Delete scratch
-        if succeeded then [||] else [| text |]
+    let arguments =
+        [ yield sprintf "--targetprofile:netcore"
+          yield sprintf "--out:%s" (source + ".dll")
+          yield sprintf "--nowarn:%s" "FS0064;FS0049;FS0025;FS1182;FS3370"
+          yield! referenceLines ()
+          yield source ]
 
-    attempt opening
+    let start = Diagnostics.ProcessStartInfo("dotnet", sprintf "%s %s" fscPath (String.concat " " arguments))
+    start.RedirectStandardOutput <- true
+    start.RedirectStandardError <- true
+    use started = Diagnostics.Process.Start start
+    let output = started.StandardOutput.ReadToEndAsync()
+    let errors = started.StandardError.ReadToEndAsync()
+    started.WaitForExit()
+    let text = (output.Result + "\n" + errors.Result).Trim()
+    for path in [ source; source + ".dll"; source + ".pdb" ] do
+        if File.Exists path then File.Delete path
+    // fsc reports its version banner on success too, so the exit code decides, not whether there was output.
+    if started.ExitCode = 0 then [||]
+    // The scratch path is noise in a message about a README line, so it is replaced with the block's own line.
+    else [| text.Replace(source, "the example") |]
 
 
 let verbose =
@@ -200,3 +256,6 @@ match broken with
             printfn "%s" error
     printfn ""
     printfn "%d of %d example blocks do not type-check" broken.Length toCheck.Length
+    // A nonzero exit, because printing a failure and exiting zero is a green build. This runs in CI, and the whole point
+    // of checking the examples on every build is that a broken one stops the build.
+    exit 1
