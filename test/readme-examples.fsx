@@ -20,6 +20,7 @@
 open System
 open System.IO
 open System.Text.RegularExpressions
+open System.Threading
 
 /// The repository root. This file lives in test/, so the documents are one level up.
 let repository = Path.GetFullPath(Path.Combine(__SOURCE_DIRECTORY__, ".."))
@@ -200,6 +201,9 @@ let private fscPath =
     |> Option.map (fun (_, path) -> Path.Combine(path, "FSharp", "fsc.dll"))
     |> Option.defaultWith (fun () -> failwithf "no F# compiler found under %s" sdk)
 
+/// Distinguishes the scratch file each block is compiled from, so two blocks cannot share a file name
+let mutable private scratchCounter = 0
+
 /// Type-checks one block with the F# compiler, and returns the errors it gave.
 ///
 /// Each README example opens the modules it needs, because a reader copies one block on its own and it has to work. So the
@@ -218,17 +222,27 @@ let private fscPath =
 ///
 /// stderr is read as it arrives, because a pipe nothing drains fills up and stops the child answering.
 let private check (code: string) =
-    let source = Path.Combine(Path.GetTempPath(), sprintf "readme-example-%d.fs" (abs (hash code)))
-    File.WriteAllText(source, String.concat "\n" ([ "module ReadmeExample" ] @ openingLines @ [ code ]))
+    // The file name carries a counter rather than a hash of the code: two blocks with identical text would otherwise
+    // share one file name, and the second would overwrite the first while its compiler process is still reading it.
+    let number = Interlocked.Increment &scratchCounter
+    let scratch = Path.Combine(Path.GetTempPath(), sprintf "readme-example-%d.fs" number)
+    File.WriteAllText(scratch, String.concat "\n" ([ "module ReadmeExample" ] @ openingLines @ [ code ]))
 
+    // The arguments are passed as a list rather than joined into one string, so a path containing a space stays one
+    // argument. Joining is how a checkout under "C:\Program Files" or "/home/a b" would fail on a machine that has one.
     let arguments =
-        [ yield sprintf "--targetprofile:netcore"
-          yield sprintf "--out:%s" (source + ".dll")
-          yield sprintf "--nowarn:%s" "FS0064;FS0049;FS0025;FS1182;FS3370"
+        [ yield "--targetprofile:netcore"
+          yield sprintf "--out:%s" (scratch + ".dll")
+          yield "--nowarn:FS0064,FS0049,FS0025,FS1182,FS3370"
           yield! referenceLines ()
-          yield source ]
+          yield scratch ]
 
-    let start = Diagnostics.ProcessStartInfo("dotnet", sprintf "%s %s" fscPath (String.concat " " arguments))
+    let start = Diagnostics.ProcessStartInfo("dotnet")
+    // Everything goes on the list rather than into a joined Arguments string, so a path containing a space stays one
+    // argument. The BCL refuses both being set, so Arguments is left alone and only the list is used.
+    start.ArgumentList.Add fscPath
+    for argument in arguments do
+        start.ArgumentList.Add argument
     start.RedirectStandardOutput <- true
     start.RedirectStandardError <- true
     use started = Diagnostics.Process.Start start
@@ -236,12 +250,12 @@ let private check (code: string) =
     let errors = started.StandardError.ReadToEndAsync()
     started.WaitForExit()
     let text = (output.Result + "\n" + errors.Result).Trim()
-    for path in [ source; source + ".dll"; source + ".pdb" ] do
+    for path in [ scratch; scratch + ".dll"; scratch + ".pdb" ] do
         if File.Exists path then File.Delete path
     // fsc reports its version banner on success too, so the exit code decides, not whether there was output.
     if started.ExitCode = 0 then [||]
-    // The scratch path is noise in a message about a README line, so it is replaced with the block's own line.
-    else [| text.Replace(source, "the example") |]
+    // The scratch path is noise in a message about a README line, so it is replaced with a name a reader can act on.
+    else [| text.Replace(scratch, "the example") |]
 
 
 let verbose =
