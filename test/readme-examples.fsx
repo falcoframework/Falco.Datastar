@@ -165,18 +165,39 @@ let private openingLines =
 ///
 /// The newest SDK is used, so the compiler that reads the README is the one the library itself is built with. A block that
 /// needs a newer language feature than an older compiler has is a documentation problem worth seeing.
+///
+/// The versions are compared as numbers rather than as text. Sorting the directory names puts "9.0.301" above "10.0.401",
+/// because "9" is the larger character, so a plain sort picks the oldest compiler on the machine and quietly checks the
+/// examples against a language version the project does not even target.
 let private fscPath =
     let sdk = Path.Combine(dotnetRoot, "sdk")
     if not (Directory.Exists sdk) then
         failwithf "no SDK at %s, so there is no F# compiler to check the examples with" sdk
+
+    /// The version as a comparable list of numbers, or None for a name that is not a release version
+    let releaseVersion (name: string) =
+        let parts = name.Split '.'
+        if parts.Length < 2 then None
+        elif parts |> Array.exists (fun part -> part.Contains "-" || part.Contains "+") then None
+        else
+            let numbers =
+                parts
+                |> Array.map (fun part ->
+                    match System.Int32.TryParse part with
+                    | true, number -> Some number
+                    | _ -> None)
+            // Every part has to be a number, so a directory such as "10.0.4-preview" is skipped rather than half read.
+            if numbers |> Array.exists Option.isNone then None
+            else Some(numbers |> Array.choose id)
+
     Directory.GetDirectories(sdk)
-    |> Array.filter (fun path ->
-        let name = Path.GetFileName path
-        // A release version, not a preview or a release candidate, which may not accept what the project uses.
-        name.Split('.') |> Array.forall (fun part -> not (part.Contains "-")) && name.Contains ".")
-    |> Array.sortDescending
-    |> Array.tryFind (fun path -> File.Exists(Path.Combine(path, "FSharp", "fsc.dll")))
-    |> Option.map (fun path -> Path.Combine(path, "FSharp", "fsc.dll"))
+    |> Array.choose (fun path ->
+        match releaseVersion (Path.GetFileName path) with
+        | None -> None
+        | Some version -> Some(version, path))
+    |> Array.sortByDescending fst
+    |> Array.tryFind (fun (_, path) -> File.Exists(Path.Combine(path, "FSharp", "fsc.dll")))
+    |> Option.map (fun (_, path) -> Path.Combine(path, "FSharp", "fsc.dll"))
     |> Option.defaultWith (fun () -> failwithf "no F# compiler found under %s" sdk)
 
 /// Type-checks one block with the F# compiler, and returns the errors it gave.
