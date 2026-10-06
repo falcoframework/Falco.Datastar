@@ -1,0 +1,34 @@
+name: e2e
+
+# The browser tests only run when someone starts them: Actions tab, e2e, Run workflow.
+# They load Datastar from a CDN and start a real Chromium, so they are not part of the build that runs on every push and pull request.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The tests run on .NET 10. The RocketComponents example targets net9.0, and the library targets net8.0 as well.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Build
+        run: dotnet build test/Falco.Datastar.E2E -c Release
+
+      - name: Install Chromium
+        run: pwsh test/Falco.Datastar.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Test
+        run: dotnet test test/Falco.Datastar.E2E -c Release --no-build

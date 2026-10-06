@@ -5,6 +5,7 @@ open System.Collections.Generic
 open System.Text
 open System.Text.Json
 open System.Text.Json.Nodes
+open System.Text.RegularExpressions
 open System.Web
 open Falco.Markup
 open StarFederation.Datastar.FSharp
@@ -18,23 +19,27 @@ type SignalsFilter =
     static member None = { IncludePattern = ValueNone; ExcludePattern = ValueNone }
     static member Include pattern =  { IncludePattern = ValueSome pattern; ExcludePattern = ValueNone }
     static member Exclude pattern =  { IncludePattern = ValueNone; ExcludePattern = ValueSome pattern }
+    /// Includes every signal whose path starts with the prefix, e.g. "form." matches "form.name" but not "formal"
+    static member Prefix (prefix:string) =
+        SignalsFilter.Include ("^" + Regex.Escape prefix)
+    /// True when the filter has neither an include nor an exclude pattern. It does not allocate, unlike comparing with SignalsFilter.None
+    static member internal IsNone (signalFilter:SignalsFilter) =
+        signalFilter.IncludePattern = ValueNone && signalFilter.ExcludePattern = ValueNone
+    /// The filter as a JavaScript object that Datastar reads, such as { include: /^form\./ }, ready to put in an attribute.
+    /// A pattern is a regular expression without the slashes around it. A slash inside it is escaped for you.
     static member Serialize (signalFilter:SignalsFilter) =
-        if signalFilter = SignalsFilter.None then
+        if SignalsFilter.IsNone signalFilter then
             ""
         else
-            StringBuilder()
-            |> _.Append("{ ")
-            |> (fun sb ->
-                let filters = seq {
-                    if (signalFilter.IncludePattern <> ValueNone) then
-                        signalFilter.IncludePattern |> ValueOption.get |> (fun incStr -> $"include: /{incStr}/")
-                    if (signalFilter.ExcludePattern <> ValueNone) then
-                        signalFilter.ExcludePattern |> ValueOption.get |> (fun excStr -> $"exclude: /{excStr}/")
-                    }
-                sb.AppendJoin(',', filters)
-                )
-            |> _.Append(" }")
-            |> _.ToString()
+            let filters = seq {
+                match signalFilter.IncludePattern with
+                | ValueSome pattern -> $"include: {Js.regexLiteral pattern}"
+                | ValueNone -> ()
+                match signalFilter.ExcludePattern with
+                | ValueSome pattern -> $"exclude: {Js.regexLiteral pattern}"
+                | ValueNone -> ()
+                }
+            Js.attrEncode ("{ " + String.Join(',', filters) + " }")
 
 module SignalsFilter =
     let sf (includePattern:string) = SignalsFilter.Include includePattern
@@ -54,6 +59,8 @@ module SignalPath =
                     | true, jsonElement -> ValueSome jsonElement
                     )
                 ) (ValueSome jsonElement)
+        // A part of the path that is not there gives ValueNone, and a value that cannot be read as 'T does too.
+        // That is the behaviour this has always had, and it is Falco's own, so it is left as it is.
         try
             getSignalCore jsonDocument.RootElement signalPath |> ValueOption.map _.Deserialize<'T>()
         with | _ -> ValueNone
@@ -83,11 +90,13 @@ type BackendAction =
     | Put of url:string
     | Patch of url:string
     | Delete of url:string
+    /// The HTTP QUERY method. Like GET, it is safe to repeat, but it can carry a body
+    | Query of url:string
 
 type ContentType =
     /// default, filtered signals; default
     | Json
-    /// sends a custom object instead of the default, filtered signals
+    /// sends a custom object as the request payload instead of the default, filtered signals
     | CustomJson of obj
     /// validates inputs of closest form and sends them to the backend
     | Form
@@ -101,22 +110,32 @@ type Retry =
     | OnError
     /// retries on all non-204 responses, except redirects
     | OnAlways
-    /// disables retry
+    /// does not retry a response that is not 200. Datastar 1.0.4 still retries after a network error, up to RetryMaxCount times
     | OnNever
+    with
+    static member Serialize (retry:Retry) =
+        match retry with
+        | OnAuto -> "auto"
+        | OnError -> "error"
+        | OnAlways -> "always"
+        | OnNever -> "never"
 
 type RequestCancellation =
-    /// cancels existing requests on the same element; default
+    /// cancels an earlier request with the same method and URL; default
     | Auto
     /// allows concurrent requests
     | Disabled
-    /// an object name that can be aborted; https://data-star.dev/reference/actions#request-cancellation;
-    /// creator should include '$', e.g. (AbortController "$controller")
+    /// like Auto, but also cancels the request when the element it is on is removed from the DOM
+    | Cleanup
+    /// A signal that holds an AbortController, e.g. (AbortController "$controller"). Its name is written as code, so it starts with '$'.
+    /// https://data-star.dev/reference/actions#request-cancellation
     | AbortController of string
     with
     static member Serialize (requestCancellation:RequestCancellation) =
         match requestCancellation with
         | Auto -> "auto"
         | Disabled -> "disabled"
+        | Cleanup -> "cleanup"
         | AbortController controller -> controller
 
 type ResponseOverrideMode =
@@ -128,6 +147,10 @@ type ResponseOverrideMode =
     | Append
     | Before
     | After
+
+module internal RequestJson =
+    /// One shared instance, because creating options on every call is slow
+    let options = JsonSerializerOptions(WriteIndented = false)
 
 /// Request Options for backend action plugins
 /// https://data-star.dev/reference/action_plugins
@@ -145,88 +168,121 @@ type RequestOptions = {
       Headers: (string * string) list
 
       /// Whether to keep the connection open when the page is hidden. Useful for dashboards
-      /// but can cause a drain on battery life and other resources when enabled. Defaults to false.
-      OpenWhenHidden: bool
+      /// but can cause a drain on battery life and other resources when enabled.
+      /// Not set by default, so Datastar chooses: false for @get and true for the other actions.
+      OpenWhenHidden: bool voption
 
       /// Determines on what to retry; auto, error, always, never
       Retry: Retry
 
-      /// The retry interval in milliseconds. Defaults to 1 second
+      /// The wait before the first retry. Datastar reads it in milliseconds, and it is sent as that. Defaults to 1 second
       RetryInterval: TimeSpan
 
       /// A numeric multiplier applied to scale retry wait times. Defaults to 2.
       RetryScaler: float
 
-      /// The maximum allowable wait time in milliseconds between retries. Defaults to 30 seconds.
+      /// The longest wait between retries. Sent in milliseconds. Defaults to 30 seconds.
       RetryMaxWait: TimeSpan
 
       /// The maximum number of retry attempts. Defaults to 10.
       RetryMaxCount: int
 
-      /// An AbortSignal object that can be used to cancel the request.
+      /// What happens to an earlier request with the same method and URL. AbortController lets you cancel it from your own code.
       /// https://data-star.dev/reference/actions#request-cancellation
       RequestCancellation: RequestCancellation
       }
     with
-    static member Defaults =
+    static member Defaults = RequestOptionsDefaults.Value
+
+    static member inline With contentType = { RequestOptions.Defaults with ContentType = contentType }
+
+    /// The options as a JavaScript object, ready to put in an attribute. Only what differs from Datastar's own defaults is written.
+    /// Each option is written as a JSON value, except an AbortController, which is the name of a signal that holds one.
+    static member Serialize (options:RequestOptions) =
+        let defaults = RequestOptions.Defaults
+        let written = ResizeArray<string>()
+        let add (name:string) (javaScript:string) = written.Add $"\"{name}\":{javaScript}"
+        let json (value:'T) = JsonSerializer.Serialize(value, RequestJson.options)
+
+        match options.ContentType with
+        | _ when options.ContentType = defaults.ContentType -> ()
+        | Form -> add "contentType" (json "form")
+        | SelectedForm formSelector ->
+            add "contentType" (json "form")
+            add "selector" (json (string formSelector))
+        | CustomJson customJson ->
+            add "contentType" (json "json")
+            match isNull (box customJson) with
+            | true -> add "payload" "null"
+            | false ->
+                add "payload" (JsonSerializer.SerializeToNode(customJson, JsonSerializerOptions.SignalsDefault).ToJsonString RequestJson.options)
+        | Json -> add "contentType" (json "json")
+
+        if not (SignalsFilter.IsNone options.FilterSignals) then
+            // Datastar only excludes signals that start with an underscore when it is not given an exclude of its own, so a filter keeps that rule
+            let excludeAlso (pattern:string) = "(^|\\.)_|(?:" + pattern + ")"
+            let parts =
+                [ match options.FilterSignals.IncludePattern with
+                  | ValueSome pattern -> "\"include\":" + json (Js.regexString pattern)
+                  | ValueNone -> ()
+                  match options.FilterSignals.ExcludePattern with
+                  | ValueSome pattern -> "\"exclude\":" + json (excludeAlso pattern)
+                  | ValueNone -> () ]
+            add "filterSignals" ("{" + String.Join(",", parts) + "}")
+
+        if not options.Headers.IsEmpty then
+            let names = HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            for name, _ in options.Headers do
+                if not (names.Add name) then
+                    raise (ArgumentException($"RequestOptions.Headers has the name \"{name}\" more than once. A request sends each header name once, so put the values in one header, separated by commas."))
+            add "headers" ("{" + String.Join(",", options.Headers |> List.map (fun (name, value) -> $"{json name}:{json value}")) + "}")
+
+        options.OpenWhenHidden
+        |> ValueOption.iter (fun openWhenHidden -> add "openWhenHidden" (match openWhenHidden with | true -> "true" | false -> "false"))
+
+        if options.Retry <> defaults.Retry then
+            add "retry" (json (Retry.Serialize options.Retry))
+
+        if options.RetryInterval <> defaults.RetryInterval then
+            add "retryInterval" (json options.RetryInterval.TotalMilliseconds)
+
+        if options.RetryScaler <> defaults.RetryScaler then
+            if not (Double.IsFinite options.RetryScaler) then
+                raise (ArgumentException($"RequestOptions.RetryScaler must be a finite number, but it is {Js.number options.RetryScaler}. Datastar multiplies the wait by it after every retry. Leave it at 2, or use a number such as 1.5."))
+            add "retryScaler" (json options.RetryScaler)
+
+        if options.RetryMaxWait <> defaults.RetryMaxWait then
+            add "retryMaxWait" (json options.RetryMaxWait.TotalMilliseconds)
+
+        if options.RetryMaxCount <> defaults.RetryMaxCount then
+            add "retryMaxCount" (json options.RetryMaxCount)
+
+        if options.RequestCancellation <> defaults.RequestCancellation then
+            match options.RequestCancellation with
+            | AbortController controller when String.IsNullOrWhiteSpace controller ->
+                raise (ArgumentException("RequestOptions.RequestCancellation is AbortController without a name. Write the signal that holds the controller, for example AbortController \"$controller\", or use Auto."))
+            | AbortController controller ->
+                // Datastar only accepts an AbortController object, so the name is written as code and not as text.
+                // It is a signal name, which is a chain of path segments, so it is checked before it goes in as code.
+                Guard.signalReference "RequestOptions.RequestCancellation" controller
+                add "requestCancellation" controller
+            | other -> add "requestCancellation" (json (RequestCancellation.Serialize other))
+
+        HttpUtility.HtmlEncode("{" + String.Join(",", written) + "}")
+
+/// The one copy of RequestOptions.Defaults. A property that builds a new record is read about ten times for every request option that is written.
+and internal RequestOptionsDefaults private () =
+    static member val Value : RequestOptions =
         { ContentType = Json
           FilterSignals = SignalsFilter.None
           Headers = []
-          OpenWhenHidden = false
+          OpenWhenHidden = ValueNone
           Retry = Retry.OnAuto
           RetryInterval = TimeSpan.FromSeconds(1.0)
           RetryScaler = 2.0
           RetryMaxWait = TimeSpan.FromSeconds(30.0)
           RetryMaxCount = 10
-          RequestCancellation = Auto }
-
-    static member inline With contentType = { RequestOptions.Defaults with ContentType = contentType }
-
-    static member internal Serialize (backendActionOptions:RequestOptions) =
-        let jsonObject = JsonObject()
-
-        match backendActionOptions.ContentType with
-        | _ when backendActionOptions.ContentType = RequestOptions.Defaults.ContentType -> ()
-        | Form -> jsonObject.Add("contentType", "form")
-        | SelectedForm formSelector ->
-            jsonObject.Add("contentType", "form")
-            jsonObject.Add("selector", formSelector)
-        | CustomJson customJson ->
-            let serializedOverride = JsonSerializer.Serialize(customJson, JsonSerializerOptions.SignalsDefault)
-            jsonObject.Add("contentType", "json")
-            jsonObject.Add("override", serializedOverride)
-        | Json -> jsonObject.Add("contentType", "json")
-
-        if backendActionOptions.FilterSignals <> RequestOptions.Defaults.FilterSignals then
-            jsonObject.Add("filterSignals", backendActionOptions.FilterSignals |> SignalsFilter.Serialize |> JsonNode.Parse)
-
-        if backendActionOptions.Headers.Length > 0 then
-            let headerObject = JsonObject()
-            backendActionOptions.Headers |> List.iter headerObject.Add
-            jsonObject.Add("headers", headerObject)
-
-        if backendActionOptions.OpenWhenHidden <> RequestOptions.Defaults.OpenWhenHidden then
-            jsonObject.Add("openWhenHidden", backendActionOptions.OpenWhenHidden.ToString().ToLower())
-
-        if backendActionOptions.RetryInterval <> RequestOptions.Defaults.RetryInterval then
-            jsonObject.Add("retryInterval", backendActionOptions.RetryInterval.TotalMilliseconds)
-
-        if backendActionOptions.RetryScaler <> RequestOptions.Defaults.RetryScaler then
-            jsonObject.Add("retryScaler", backendActionOptions.RetryScaler)
-
-        if backendActionOptions.RetryMaxWait <> RequestOptions.Defaults.RetryMaxWait then
-            jsonObject.Add("retryMaxWaitMs", backendActionOptions.RetryMaxWait.TotalMilliseconds)
-
-        if backendActionOptions.RetryMaxCount <> RequestOptions.Defaults.RetryMaxCount then
-            jsonObject.Add("retryMaxCount", backendActionOptions.RetryMaxCount)
-
-        if backendActionOptions.RequestCancellation <> RequestOptions.Defaults.RequestCancellation then
-            let requestCancellation = backendActionOptions.RequestCancellation |> RequestCancellation.Serialize
-            jsonObject.Add("requestCancellation", requestCancellation)
-
-        let options = JsonSerializerOptions()
-        options.WriteIndented <- false
-        HttpUtility.HtmlEncode(jsonObject.ToJsonString(options))
+          RequestCancellation = Auto } with get
 
 type Debounce =
     { TimeSpan:TimeSpan
@@ -263,6 +319,8 @@ type OnEventModifier =
     | Throttle of Throttle
     /// Attaches the event listener to the window element.
     | Window
+    /// Attaches the event listener to the document.
+    | Document
     /// Triggers the event when it occurs outside the element.
     | Outside
     /// Call `preventDefault` on the event listener
@@ -271,6 +329,31 @@ type OnEventModifier =
     | Stop
     /// Wrap the expression in document.startViewTransition(), if View Transition API is available
     | ViewTransition
+
+/// The casing Datastar gives to the name an attribute creates. Write it with its type name, e.g. CaseStyle.Snake
+/// <remarks>
+/// Datastar's own case functions are camel, snake and pascal. It has no kebab function, and that is deliberate: for a
+/// class or an event name the HTML parser has already lowercased the attribute key, so "keeping it as written" is what
+/// preserves the hyphens the author put there. Kebab therefore asks Datastar for exactly that, and it is the default
+/// Datastar already applies to data-class and data-on, so asking for it there changes nothing.
+/// </remarks>
+[<RequireQualifiedAccess>]
+type CaseStyle =
+    /// mySignal
+    | Camel
+    /// my-signal, which Datastar produces by leaving the name as written
+    | Kebab
+    /// my_signal
+    | Snake
+    /// MySignal
+    | Pascal
+    with
+    static member internal Serialize (caseStyle:CaseStyle) =
+        match caseStyle with
+        | CaseStyle.Camel -> "camel"
+        | CaseStyle.Kebab -> "kebab"
+        | CaseStyle.Snake -> "snake"
+        | CaseStyle.Pascal -> "pascal"
 
 /// <summary>
 /// Modifier for a DsAttr. &lt;data-...__Name.Tag.Tag=...&gt;
@@ -323,6 +406,7 @@ type DsAttrModifier =
         | Throttle throttle -> (DsAttrModifier.Throttle throttle)
         | ViewTransition -> { Name = "viewtransition"; Tags = [] }
         | Window -> { Name = "window"; Tags = [] }
+        | Document -> { Name = "document"; Tags = [] }
         | Outside -> { Name = "outside"; Tags = [] }
         | Prevent -> { Name = "prevent"; Tags = [] }
         | Stop -> { Name = "stop"; Tags = [] }
@@ -337,6 +421,15 @@ type DsAttr =
       HasCaseModifier:bool
       Value:string voption }
     with
+    /// What the target of an attribute is, for the message when it cannot be used
+    static member internal describeTarget (attributeName:string) =
+        match attributeName with
+        | "class" -> "class name"
+        | "on" -> "event name"
+        | "attr" -> "attribute name"
+        | "style" -> "style property"
+        | _ -> "name"
+
     static member inline start name =
         { Name = name; Target = ValueNone; Modifiers = []; Value = ValueNone; HasCaseModifier = false }
 
@@ -372,7 +465,11 @@ type DsAttr =
     static member inline addValue (value:string) dsAttr =
         { dsAttr with Value = ValueSome value }
 
-    static member inline generateKey dsAttr =
+    static member generateKey dsAttr =
+        // Every part of the key goes into the name of an attribute, and Falco.Markup does not escape an attribute name.
+        // A quote in any of them would end the name early and could add attributes of its own.
+        dsAttr.Target |> ValueOption.iter (Guard.attributeName (DsAttr.describeTarget dsAttr.Name) (not dsAttr.Modifiers.IsEmpty))
+        Guard.attributeName "attribute name" false dsAttr.Name
         StringBuilder()
         |> _.Append(Constants.dataSlugPrefix) |> _.Append('-')
         |> _.Append(dsAttr.Name)
@@ -386,8 +483,10 @@ type DsAttr =
             | [] -> sb
             | modifiers ->
                 for modifier in modifiers do
+                    Guard.attributeName "modifier name" false modifier.Name
                     sb.Append("__") |> _.Append(modifier.Name) |> ignore
                     for tag in modifier.Tags do
+                        Guard.attributeName "modifier value" false tag
                         sb.Append('.') |> _.Append(tag) |> ignore
                 sb
             )
@@ -417,4 +516,3 @@ type DsAttr =
           Value = value |> Option.toValueOption
           HasCaseModifier = (defaultArg hasCaseModifier false) }
         |> DsAttr.create
-

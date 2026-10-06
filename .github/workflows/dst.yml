@@ -1,0 +1,62 @@
+name: dst
+
+# Runs the simulation tests with many seeds. A failure names the seed, and
+# DST_SEED=<seed> dotnet test test/Falco.Datastar.Tests -c Release replays it.
+#
+# It runs on a schedule as well as on demand, because the default push runs only 25 seeds. That is enough to keep the
+# suite honest on every change and quick enough to run each time, and the rare case that 25 seeds misses is exactly the
+# one a scheduled run exists to find. Without it, "we ran 2000 seeds" is a claim about one afternoon.
+on:
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: "How many seeds to run for each simulation test (1 to this number)"
+        required: true
+        default: "1000"
+  schedule:
+    # Weekly, early in the morning UTC. Offset from the hour so it does not queue behind every other scheduled run.
+    - cron: "23 4 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  dst:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      # The default for a scheduled run, which has no inputs to read
+      - name: Work out how many seeds to run
+        id: seeds
+        run: |
+          requested="${{ inputs.seeds }}"
+          if [ -z "$requested" ]; then requested=2000; fi
+          if ! [ "$requested" -ge 1 ] 2>/dev/null; then
+            echo "::error::the seed count has to be a number of at least 1, but it was '$requested'"
+            exit 1
+          fi
+          echo "count=$requested" >> "$GITHUB_OUTPUT"
+          echo "running $requested seeds"
+
+      - name: Test with many seeds
+        run: dotnet test test/Falco.Datastar.Tests -c Release --framework net10.0
+        env:
+          DST_SEEDS: ${{ steps.seeds.outputs.count }}
+
+      # The same seeds on the oldest target the library supports, because a simulation that passes on one runtime and
+      # fails on another is still a failure. It is built here rather than with --no-build, because the step above only
+      # produced net10.0 and there is nothing to reuse for net8.0.
+      - name: Test the same seeds on the oldest target
+        run: dotnet test test/Falco.Datastar.Tests -c Release --framework net8.0
+        env:
+          DST_SEEDS: ${{ steps.seeds.outputs.count }}

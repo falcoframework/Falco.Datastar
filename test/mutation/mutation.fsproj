@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Mutation testing: proves that the unit tests catch the mistakes this library could plausibly make.
+
+       It is a separate program because a mutant rewrites lines of src/Falco.Datastar and the tests have to run
+       against the rebuilt assembly, which the test process cannot do while it is holding that assembly open.
+
+       It is deliberately not part of the solution: nothing in the solution depends on it, so building and testing the
+       repository does not build it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <AssemblyName>mutation</AssemblyName>
+    <RootNamespace>Falco.Datastar.Mutation</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Mutants.fs" />
+    <Compile Include="Runner.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+</Project>

@@ -1,21 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
 
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Generator.fs" />
+    <Compile Include="GeneratorTests.fs" />
+    <Compile Include="Dst.fs" />
+    <Compile Include="TestHelpers.fs" />
+    <Compile Include="Fragments.fs" />
+    <Compile Include="DistributionTests.fs" />
+    <Compile Include="CompatibilityTests.fs" />
     <Compile Include="DsTests.fs" />
+    <Compile Include="RequestOptionsTests.fs" />
+    <Compile Include="RocketTests.fs" />
+    <Compile Include="RequestTests.fs" />
+    <Compile Include="ResponseTests.fs" />
+    <Compile Include="RocketManifestTests.fs" />
+    <Compile Include="ExprTests.fs" />
+    <Compile Include="PropertyTests.fs" />
+    <Compile Include="EscapingTests.fs" />
+    <Compile Include="DstHtmlTests.fs" />
+    <Compile Include="DstManifestTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AngleSharp" Version="1.8.2" />
+    <PackageReference Include="FsCheck.Xunit" Version="3.4.0" />
     <PackageReference Include="FsUnit.Xunit" Version="6.*" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
-    <PackageReference Include="NSubstitute" Version="5.*" />
     <PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
       <PrivateAssets>all</PrivateAssets>

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>Falco.Datastar</AssemblyName>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
 
     <!-- General info -->
     <Description>Datastar Bindings for the Falco web toolkit.</Description>
@@ -14,12 +14,14 @@
     <DebugType>embedded</DebugType>
     <OutputType>Library</OutputType>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- A new advisory on a package we depend on should show up as a warning, not break the build on a day when no code changed -->
+    <WarningsNotAsErrors>NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <!-- NuGet config -->
     <PackageId>Falco.Datastar</PackageId>
-    <PackageVersion>1.3.0</PackageVersion>
+    <PackageVersion>1.4.0</PackageVersion>
     <PackageTags>fsharp;web;falco;falco-sharp;data-star</PackageTags>
     <PackageProjectUrl>https://github.com/falcoframework/Falco.Datastar</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
@@ -38,8 +40,8 @@
 
   <ItemGroup>
     <PackageReference Include="Falco" Version="5.1.0" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.*" PrivateAssets="All" />
-    <PackageReference Include="StarFederation.Datastar.FSharp" Version="1.2.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401" PrivateAssets="All" />
+    <PackageReference Include="StarFederation.Datastar.FSharp" Version="1.4.0" />
     <PackageReference Update="FSharp.Core" Version="6.0.0"/>
   </ItemGroup>
 
@@ -48,7 +50,10 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="" />
     <Compile Include="Utility.fs" />
     <Compile Include="Types.fs" />
+    <Compile Include="Expr.fs" />
     <Compile Include="Ds.fs" />
+    <Compile Include="Rocket.fs" />
+    <Compile Include="RocketManifest.fs" />
     <Compile Include="Request.fs" />
     <Compile Include="Response.fs" />
   </ItemGroup>

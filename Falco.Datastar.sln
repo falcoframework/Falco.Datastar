@@ -12,13 +12,15 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ClickToLoad", "examples\Cli
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ClickAndSwap", "examples\ClickAndSwap\ClickAndSwap.fsproj", "{8E2C0AA3-07E5-40D8-8F16-905F5F1D30AE}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Signals", "Examples\Signals\Signals.fsproj", "{0187E584-68DF-4D8C-874C-FF8E061932DF}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Signals", "examples\Signals\Signals.fsproj", "{0187E584-68DF-4D8C-874C-FF8E061932DF}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Streaming", "Examples\Streaming\Streaming.fsproj", "{AECB950B-20DD-40C4-9ACA-3A8FF1CFBC05}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Streaming", "examples\Streaming\Streaming.fsproj", "{AECB950B-20DD-40C4-9ACA-3A8FF1CFBC05}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Falco.Datastar.Tests", "test\Falco.Datastar.Tests\Falco.Datastar.Tests.fsproj", "{772A0FC5-A796-4408-9751-53842F8B8C77}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "InputForm", "examples\InputForm\InputForm.fsproj", "{19E053A0-6EA6-4818-AF0D-5BE0B36D55EF}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "RocketComponents", "examples\RocketComponents\RocketComponents.fsproj", "{825381C2-4DD5-49D1-A487-055E61349DE0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "environment", "environment", "{13C18205-082E-4DED-9AD4-D3001ABDFECA}"
 	ProjectSection(SolutionItems) = preProject
@@ -39,6 +41,7 @@ Global
 		{0187E584-68DF-4D8C-874C-FF8E061932DF} = {305B55B6-83D0-453C-A77E-080214FA0657}
 		{AECB950B-20DD-40C4-9ACA-3A8FF1CFBC05} = {305B55B6-83D0-453C-A77E-080214FA0657}
 		{19E053A0-6EA6-4818-AF0D-5BE0B36D55EF} = {305B55B6-83D0-453C-A77E-080214FA0657}
+		{825381C2-4DD5-49D1-A487-055E61349DE0} = {305B55B6-83D0-453C-A77E-080214FA0657}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{6BCE09E2-DA8E-44F9-B5EC-C4F76E329471}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -77,5 +80,9 @@ Global
 		{19E053A0-6EA6-4818-AF0D-5BE0B36D55EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{19E053A0-6EA6-4818-AF0D-5BE0B36D55EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{19E053A0-6EA6-4818-AF0D-5BE0B36D55EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{825381C2-4DD5-49D1-A487-055E61349DE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{825381C2-4DD5-49D1-A487-055E61349DE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{825381C2-4DD5-49D1-A487-055E61349DE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{825381C2-4DD5-49D1-A487-055E61349DE0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
